@@ -6,12 +6,9 @@
 
     <el-main>
       <el-tabs v-model="activeTab">
-        <el-tab-pane label="录入数据" name="input">
+        <el-tab-pane label="录入 & 查看" name="input">
           <RecordInput @success="handleInputSuccess" />
-        </el-tab-pane>
-
-        <el-tab-pane label="查看记录" name="records">
-          <RecordList :refresh="refreshTrigger" />
+          <RecordList :refresh="refreshTrigger" class="mt-16" />
         </el-tab-pane>
 
         <el-tab-pane label="统计数据" name="stats">
@@ -33,7 +30,6 @@ const refreshTrigger = ref(0)
 
 const handleInputSuccess = () => {
   refreshTrigger.value++
-  activeTab.value = 'records'
 }
 </script>
 
@@ -54,5 +50,9 @@ el-header {
 h1 {
   margin: 0;
   font-size: 24px;
+}
+
+.mt-16 {
+  margin-top: 16px;
 }
 </style>

@@ -24,6 +24,8 @@
           placeholder="例如: 120003177"
           style="width: 100%"
           clearable
+          :trigger-on-focus="true"
+          value-key="value"
         />
       </el-form-item>
 
@@ -77,47 +79,22 @@
         <el-button @click="handleReset">重置</el-button>
       </el-form-item>
     </el-form>
-
-    <el-divider content-position="left">最近录入</el-divider>
-
-    <el-table :data="recentRecords" v-loading="loadingRecent" stripe style="margin-top: 20px">
-      <el-table-column prop="date" label="日期" width="120" />
-      <el-table-column prop="player_id" label="玩家ID" width="150" />
-      <el-table-column label="掉落组合" width="150">
-        <template #default="{ row }">
-          金 {{ row.gold_tubes }} 紫 {{ row.purple_tubes }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="sola_level" label="索拉等级" width="100" />
-      <el-table-column prop="created_at" label="录入时间" width="180">
-        <template #default="{ row }">
-          {{ formatDateTime(row.created_at) }}
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="100">
-        <template #default="{ row }">
-          <el-popconfirm
-            title="确定要删除这条记录吗？"
-            @confirm="handleDelete(row.id)"
-          >
-            <template #reference>
-              <el-button type="danger" size="small" link>撤销</el-button>
-            </template>
-          </el-popconfirm>
-        </template>
-      </el-table-column>
-    </el-table>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { recordApi } from '../api'
+
+const route = useRoute()
+const router = useRouter()
 
 const emit = defineEmits(['success'])
 
 const playerIds = ref<string[]>([])
+const isInitialized = ref(false)
 
 // 固定掉落组合表（根据提供的表格）
 const combosByLevel: Record<number, { gold: number; purple: number; experience: number }[]> = {
@@ -223,8 +200,13 @@ const handleSubmit = async () => {
 const queryPlayerIds = (queryString: string, cb: (results: { value: string }[]) => void) => {
   const results = playerIds.value
     .filter((id) => id.toLowerCase().includes(queryString.toLowerCase()))
-    .slice(0, 10) // 仅返回前 10 条
+    .slice(0, 10)
     .map((id) => ({ value: id }))
+
+  // 如果没有匹配，但用户有输入，返回用户的输入作为建议
+  if (queryString && results.length === 0) {
+    results.push({ value: queryString })
+  }
   cb(results)
 }
 
@@ -237,9 +219,39 @@ const loadPlayerIds = async () => {
   }
 }
 
+const loadLastPlayerId = async () => {
+  // 优先使用URL参数
+  const urlPlayerId = route.query.player_id as string
+  if (urlPlayerId) {
+    form.player_id = urlPlayerId
+    return
+  }
+
+  // 从服务器获取最近录入的玩家ID
+  try {
+    const response = await recordApi.getRecords({ limit: 1 })
+    if (response.data.length > 0) {
+      form.player_id = response.data[0].player_id
+    }
+  } catch (error) {
+    console.error('获取最近玩家ID失败:', error)
+  }
+}
+
+// 监听玩家ID变化，同步到URL
+watch(() => form.player_id, (newVal) => {
+  if (!isInitialized.value) return
+  const query = { ...route.query }
+  if (newVal) {
+    query.player_id = newVal
+  } else {
+    delete query.player_id
+  }
+  router.replace({ query })
+})
+
 const handleReset = () => {
   form.date = new Date().toISOString().split('T')[0]
-  form.player_id = ''
   form.sola_level = 8
   form.count = 1
   selectedComboKey.value = availableCombos.value[0]?.key || ''
@@ -247,9 +259,11 @@ const handleReset = () => {
 }
 
 // 初始化
-onMounted(() => {
+onMounted(async () => {
   handleLevelChange()
   loadPlayerIds()
+  await loadLastPlayerId()
+  isInitialized.value = true
 })
 </script>
 

@@ -30,6 +30,18 @@
       <el-table-column prop="gold_tubes" label="金色密音筒" width="120" />
       <el-table-column prop="purple_tubes" label="紫色密音筒" width="120" />
       <el-table-column prop="created_at" label="录入时间" />
+      <el-table-column label="操作" width="100" fixed="right">
+        <template #default="{ row }">
+          <el-popconfirm
+            title="确定要删除这条记录吗？"
+            @confirm="handleDelete(row.id)"
+          >
+            <template #reference>
+              <el-button type="danger" size="small">删除</el-button>
+            </template>
+          </el-popconfirm>
+        </template>
+      </el-table-column>
     </el-table>
   </el-card>
 </template>
@@ -63,6 +75,16 @@ const loadRecords = async () => {
     ElMessage.error('加载失败: ' + (error as Error).message)
   } finally {
     loading.value = false
+  }
+}
+
+const handleDelete = async (id: number) => {
+  try {
+    await recordApi.deleteRecord(id)
+    ElMessage.success('删除成功')
+    loadRecords()
+  } catch (error) {
+    ElMessage.error('删除失败: ' + (error as Error).message)
   }
 }
 
