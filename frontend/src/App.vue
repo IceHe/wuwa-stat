@@ -39,20 +39,21 @@ const handleInputSuccess = () => {
   background: #f5f7fa;
 }
 
-el-header {
+.el-header {
   background: #409eff;
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
 }
 
 h1 {
   margin: 0;
-  font-size: 24px;
+  font-size: 20px;
 }
 
 .mt-16 {
-  margin-top: 16px;
+  margin-top: 12px;
 }
 </style>

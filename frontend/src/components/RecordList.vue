@@ -1,25 +1,17 @@
 <template>
   <el-card>
-    <template #header>
-      <div class="card-header">
-        <span>产出记录列表</span>
-        <el-button type="primary" size="small" @click="loadRecords">
-          刷新
-        </el-button>
-      </div>
-    </template>
-
-    <el-form :inline="true" :model="filters">
-      <el-form-item label="玩家ID">
-        <el-input v-model="filters.player_id" placeholder="筛选玩家" clearable />
+    <el-form :inline="true" :model="filters" class="filter-form">
+      <el-form-item label="玩家">
+        <el-input v-model="filters.player_id" placeholder="筛选玩家" clearable style="width: 120px" />
       </el-form-item>
-      <el-form-item label="索拉等级">
-        <el-select v-model="filters.sola_level" placeholder="选择等级" clearable>
-          <el-option v-for="level in [6, 7, 8, 9, 10]" :key="level" :label="`等级 ${level}`" :value="level" />
+      <el-form-item label="索拉">
+        <el-select v-model="filters.sola_level" placeholder="选择等级" clearable style="width: 100px">
+          <el-option v-for="level in [8, 7, 6, 5, 4, 3, 2, 1]" :key="level" :label="`等级 ${level}`" :value="level" />
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="loadRecords">查询</el-button>
+        <el-button type="primary" @click="handleQuery">查询</el-button>
+        <el-button @click="loadRecords">刷新</el-button>
       </el-form-item>
     </el-form>
 
@@ -29,7 +21,11 @@
       <el-table-column prop="sola_level" label="索拉等级" width="100" />
       <el-table-column prop="gold_tubes" label="金色密音筒" width="120" />
       <el-table-column prop="purple_tubes" label="紫色密音筒" width="120" />
-      <el-table-column prop="created_at" label="录入时间" />
+      <el-table-column prop="created_at" label="录入时间" width="180">
+        <template #default="{ row }">
+          {{ formatDateTime(row.created_at) }}
+        </template>
+      </el-table-column>
       <el-table-column label="操作" width="100" fixed="right">
         <template #default="{ row }">
           <el-popconfirm
@@ -43,6 +39,18 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <div class="pagination-container" v-if="total > 0">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="total"
+        layout="total, sizes, prev, pager, next, jumper"
+        @current-change="handlePageChange"
+        @size-change="handleSizeChange"
+      />
+    </div>
   </el-card>
 </template>
 
@@ -61,21 +69,56 @@ const filters = reactive({
   player_id: '',
   sola_level: undefined as number | undefined
 })
+const currentPage = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
 
 const loadRecords = async () => {
   loading.value = true
   try {
-    const params: any = { limit: 100 }
+    const params: any = {
+      skip: (currentPage.value - 1) * pageSize.value,
+      limit: pageSize.value
+    }
     if (filters.player_id) params.player_id = filters.player_id
     if (filters.sola_level) params.sola_level = filters.sola_level
 
     const response = await recordApi.getRecords(params)
-    records.value = response.data
+    records.value = response.data.data || []
+    total.value = response.data.total || 0
   } catch (error) {
     ElMessage.error('加载失败: ' + (error as Error).message)
   } finally {
     loading.value = false
   }
+}
+
+const handleQuery = () => {
+  currentPage.value = 1
+  loadRecords()
+}
+
+const handlePageChange = (page: number) => {
+  currentPage.value = page
+  loadRecords()
+}
+
+const handleSizeChange = (size: number) => {
+  pageSize.value = size
+  currentPage.value = 1
+  loadRecords()
+}
+
+const formatDateTime = (dateStr: string) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
 }
 
 const handleDelete = async (id: number) => {
@@ -96,3 +139,14 @@ onMounted(() => {
   loadRecords()
 })
 </script>
+
+<style scoped>
+.filter-form {
+  margin-bottom: 0;
+}
+.pagination-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+</style>
