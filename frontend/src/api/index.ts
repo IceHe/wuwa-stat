@@ -15,6 +15,13 @@ export interface Record {
   created_at?: string
 }
 
+export interface RecordsResponse {
+  data: Record[]
+  total: number
+  page_size: number
+  current_page: number
+}
+
 export interface Stats {
   total_records: number
   total_gold_tubes: number
@@ -54,7 +61,7 @@ export const recordApi = {
     sola_level?: number
     skip?: number
     limit?: number
-  }) => api.get<Record[]>('/records', { params }),
+  }) => api.get<RecordsResponse>('/records', { params }),
 
   getStats: (params?: {
     player_id?: string

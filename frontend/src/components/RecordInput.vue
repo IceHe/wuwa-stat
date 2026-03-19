@@ -13,6 +13,7 @@
           type="date"
           placeholder="选择日期"
           value-format="YYYY-MM-DD"
+          @change="handleDateChange"
           style="width: 100%"
         />
       </el-form-item>
@@ -83,18 +84,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { recordApi } from '../api'
-
-const route = useRoute()
-const router = useRouter()
 
 const emit = defineEmits(['success'])
 
 const playerIds = ref<string[]>([])
-const isInitialized = ref(false)
 
 // 固定掉落组合表（根据提供的表格）
 const combosByLevel: Record<number, { gold: number; purple: number; experience: number }[]> = {
@@ -125,8 +121,53 @@ const combosByLevel: Record<number, { gold: number; purple: number; experience: 
 const solaLevels = [8, 7, 6, 5]
 
 const loading = ref(false)
+const isDateManuallyEdited = ref(false)
+let gameDateTimer: ReturnType<typeof setTimeout> | null = null
+
+const formatLocalDate = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const getDefaultGameDate = () => {
+  const now = new Date()
+  const gameDate = new Date(now)
+  if (now.getHours() < 4) {
+    gameDate.setDate(gameDate.getDate() - 1)
+  }
+  return formatLocalDate(gameDate)
+}
+
+const getNextGameDateSwitchTime = () => {
+  const now = new Date()
+  const next = new Date(now)
+  next.setHours(4, 0, 0, 0)
+  if (now >= next) {
+    next.setDate(next.getDate() + 1)
+  }
+  return next
+}
+
+const scheduleGameDateRefresh = () => {
+  if (gameDateTimer) {
+    clearTimeout(gameDateTimer)
+  }
+  const nextSwitch = getNextGameDateSwitchTime()
+  const delay = Math.max(nextSwitch.getTime() - Date.now() + 1000, 1000)
+  gameDateTimer = setTimeout(() => {
+    const nextDate = getDefaultGameDate()
+    if (!isDateManuallyEdited.value && form.date !== nextDate) {
+      form.date = nextDate
+      ElMessage.info(`已自动更新日期为 ${nextDate}`)
+    }
+    scheduleGameDateRefresh()
+  }, delay)
+}
+
 const form = reactive({
-  date: new Date().toISOString().split('T')[0],
+  date: getDefaultGameDate(),
   player_id: '',
   gold_tubes: 0,
   purple_tubes: 0,
@@ -149,6 +190,18 @@ const currentCombo = computed(() =>
   availableCombos.value.find((c) => c.key === selectedComboKey.value)
 )
 
+const getDefaultComboKey = (level: number) => {
+  const combos = combosByLevel[level] || []
+  if (level === 8) {
+    const preferred = combos.find((c) => c.gold === 3 && c.purple === 4)
+    if (preferred) {
+      return `${preferred.gold}-${preferred.purple}`
+    }
+  }
+  const first = combos[0]
+  return first ? `${first.gold}-${first.purple}` : ''
+}
+
 const applyComboToForm = () => {
   const combo = currentCombo.value || availableCombos.value[0]
   if (combo) {
@@ -161,13 +214,16 @@ const applyComboToForm = () => {
 }
 
 const handleLevelChange = () => {
-  // 切换等级时默认选中第一组组合
-  selectedComboKey.value = availableCombos.value[0]?.key || ''
+  selectedComboKey.value = getDefaultComboKey(form.sola_level)
   applyComboToForm()
 }
 
 const handleComboChange = () => {
   applyComboToForm()
+}
+
+const handleDateChange = () => {
+  isDateManuallyEdited.value = true
 }
 
 const handleSubmit = async () => {
@@ -220,50 +276,39 @@ const loadPlayerIds = async () => {
 }
 
 const loadLastPlayerId = async () => {
-  // 优先使用URL参数
-  const urlPlayerId = route.query.player_id as string
-  if (urlPlayerId) {
-    form.player_id = urlPlayerId
-    return
-  }
-
   // 从服务器获取最近录入的玩家ID
   try {
     const response = await recordApi.getRecords({ limit: 1 })
-    if (response.data.length > 0) {
-      form.player_id = response.data[0].player_id
+    if (response.data.data.length > 0) {
+      form.player_id = response.data.data[0].player_id
     }
   } catch (error) {
     console.error('获取最近玩家ID失败:', error)
   }
 }
 
-// 监听玩家ID变化，同步到URL
-watch(() => form.player_id, (newVal) => {
-  if (!isInitialized.value) return
-  const query = { ...route.query }
-  if (newVal) {
-    query.player_id = newVal
-  } else {
-    delete query.player_id
-  }
-  router.replace({ query })
-})
-
 const handleReset = () => {
-  form.date = new Date().toISOString().split('T')[0]
+  form.date = getDefaultGameDate()
+  isDateManuallyEdited.value = false
   form.sola_level = 8
   form.count = 1
-  selectedComboKey.value = availableCombos.value[0]?.key || ''
+  selectedComboKey.value = getDefaultComboKey(form.sola_level)
   applyComboToForm()
 }
 
 // 初始化
 onMounted(async () => {
   handleLevelChange()
+  scheduleGameDateRefresh()
   loadPlayerIds()
   await loadLastPlayerId()
-  isInitialized.value = true
+})
+
+onBeforeUnmount(() => {
+  if (gameDateTimer) {
+    clearTimeout(gameDateTimer)
+    gameDateTimer = null
+  }
 })
 </script>
 

@@ -39,14 +39,14 @@ def create_records(
     return db_records
 
 
-@router.get("/records", response_model=list[RecordResponse])
+@router.get("/records")
 def get_records(
     player_id: Optional[str] = None,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     sola_level: Optional[int] = None,
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=1000),
     db: Session = Depends(get_db)
 ):
     """查询记录，支持筛选和分页"""
@@ -61,8 +61,15 @@ def get_records(
     if sola_level:
         query = query.filter(Record.sola_level == sola_level)
 
-    records = query.order_by(Record.date.desc()).offset(skip).limit(limit).all()
-    return records
+    total = query.count()
+    records = query.order_by(Record.created_at.desc(), Record.id.desc()).offset(skip).limit(limit).all()
+
+    return {
+        "data": records,
+        "total": total,
+        "page_size": limit,
+        "current_page": skip // limit + 1
+    }
 
 
 @router.get("/stats", response_model=StatsResponse)

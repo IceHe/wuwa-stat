@@ -4,7 +4,7 @@ from app.database import Base
 
 
 class Record(Base):
-    __tablename__ = "records"
+    __tablename__ = "tacet_stats"
 
     id = Column(Integer, primary_key=True, index=True)
     date = Column(Date, nullable=False, index=True)
