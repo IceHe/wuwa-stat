@@ -2,7 +2,7 @@
   <el-card>
     <template #header>
       <div class="card-header">
-        <span>统计数据</span>
+        <span>突破材料掉落统计</span>
         <el-button type="primary" size="small" @click="loadStats">
           刷新
         </el-button>
@@ -35,15 +35,9 @@
               <span v-if="$index === 0">{{ levelStat.sola_level }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="密音筒产出" width="150" align="center">
+          <el-table-column label="掉落数量" width="120" align="center">
             <template #default="{ row }">
-              <span class="material-gold">金 {{ row.gold_tubes }}</span>
-              <span class="material-purple">紫 {{ row.purple_tubes }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="声骸经验" width="120" align="center">
-            <template #default="{ row }">
-              {{ row.experience.toLocaleString() }}
+              {{ row.drop_count }}
             </template>
           </el-table-column>
           <el-table-column label="次数" width="100" align="center">
@@ -61,9 +55,9 @@
               <span v-if="$index === 0">{{ levelStat.total_count }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="平均经验" width="120" align="center">
+          <el-table-column label="平均掉落" width="120" align="center">
             <template #default="{ $index }">
-              <span v-if="$index === 0">{{ levelStat.avg_experience.toLocaleString() }}</span>
+              <span v-if="$index === 0">{{ levelStat.avg_drop_count }}</span>
             </template>
           </el-table-column>
         </el-table>
@@ -74,7 +68,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch, onMounted } from 'vue'
-import { recordApi, type DetailedStats } from '../api'
+import { ascensionApi, type AscensionDetailedStats } from '../api'
 import { ElMessage } from 'element-plus'
 
 const props = defineProps<{
@@ -82,7 +76,7 @@ const props = defineProps<{
 }>()
 
 const loading = ref(false)
-const detailedStats = ref<DetailedStats>({
+const detailedStats = ref<AscensionDetailedStats>({
   level_stats: []
 })
 
@@ -96,7 +90,7 @@ const loadStats = async () => {
     const params: any = {}
     if (filters.player_id) params.player_id = filters.player_id
 
-    const response = await recordApi.getDetailedStats(params)
+    const response = await ascensionApi.getDetailedStats(params)
     detailedStats.value = response.data
   } catch (error) {
     ElMessage.error('加载失败: ' + (error as Error).message)
@@ -126,16 +120,5 @@ onMounted(() => {
   padding: 40px;
   color: #909399;
   font-size: 14px;
-}
-
-.material-gold {
-  color: #b8860b;
-  font-weight: 600;
-  margin-right: 8px;
-}
-
-.material-purple {
-  color: #7d3c98;
-  font-weight: 600;
 }
 </style>

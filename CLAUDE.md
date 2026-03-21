@@ -51,7 +51,7 @@ npm run build
 backend/
 ├── app/
 │   ├── main.py         # FastAPI app entry point, CORS config
-│   ├── models.py       # SQLAlchemy Record model (table: tacet_stats)
+│   ├── models.py       # SQLAlchemy Record model (table: tacet_records)
 │   ├── schemas.py      # Pydantic request/response schemas
 │   ├── database.py     # Database connection, SessionLocal
 │   └── api/
@@ -75,7 +75,12 @@ frontend/
 ```
 
 ### Database Schema
-Table: `tacet_stats`
+Table: `tacet_records`
+- Existing deployments should rename table manually:
+  - `ALTER TABLE tacet_stats RENAME TO tacet_records;`
+- Optional index rename for naming consistency:
+  - `ALTER INDEX IF EXISTS idx_tacet_stats_date RENAME TO idx_tacet_records_date;`
+  - `ALTER INDEX IF EXISTS idx_tacet_stats_player_id RENAME TO idx_tacet_records_player_id;`
 - `id` (PK)
 - `date` (indexed)
 - `player_id` (indexed)
@@ -85,12 +90,12 @@ Table: `tacet_stats`
 - `created_at` - timestamp
 
 ### API Endpoints
-- `POST /api/records` - Batch create records
-- `GET /api/records` - Query records with filters (player_id, date range, sola_level) and pagination
+- `POST /api/tacet_records` - Batch create records
+- `GET /api/tacet_records` - Query records with filters (player_id, date range, sola_level) and pagination
 - `GET /api/stats` - Basic statistics (totals, averages)
 - `GET /api/detailed-stats` - Stats grouped by sola level and drop combinations
 - `GET /api/player-ids` - List unique player IDs
-- `DELETE /api/records/{id}` - Delete a record
+- `DELETE /api/tacet_records/{id}` - Delete a record
 
 ### API Proxy
 Frontend uses Vite proxy to forward `/api` requests to `http://localhost:8000`.

@@ -1,32 +1,44 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import func
-from typing import Optional
 from datetime import date
+from typing import Optional
 
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from app.auth import require_edit_permission, require_view_permission
 from app.database import get_db
-from app.models import Record
+from app.models import AscensionRecord, Record, ResonanceRecord
 from app.schemas import (
-    RecordCreate,
+    AscensionDetailedStatsResponse,
+    AscensionDropCombination,
+    AscensionRecordBatchCreate,
+    AscensionRecordResponse,
+    AscensionSolaLevelStats,
+    DetailedStatsResponse,
+    DropCombination,
     RecordBatchCreate,
     RecordResponse,
-    StatsResponse,
-    DetailedStatsResponse,
+    ResonanceDetailedStatsResponse,
+    ResonanceDropCombination,
+    ResonanceRecordBatchCreate,
+    ResonanceRecordResponse,
+    ResonanceSolaLevelStats,
     SolaLevelStats,
-    DropCombination,
+    StatsResponse,
 )
 
-router = APIRouter(prefix="/api", tags=["records"])
+router = APIRouter(prefix="/api", tags=["tacet_records"])
 
 
-@router.post("/records", response_model=list[RecordResponse])
+@router.post("/tacet_records", response_model=list[RecordResponse])
 def create_records(
     batch: RecordBatchCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_edit_permission),
 ):
     """批量创建记录"""
     db_records = []
-    for record_data in batch.records:
+    for record_data in batch.tacet_records:
         db_record = Record(**record_data.model_dump())
         db_records.append(db_record)
 
@@ -39,7 +51,7 @@ def create_records(
     return db_records
 
 
-@router.get("/records")
+@router.get("/tacet_records")
 def get_records(
     player_id: Optional[str] = None,
     start_date: Optional[date] = None,
@@ -47,7 +59,8 @@ def get_records(
     sola_level: Optional[int] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=1000),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_view_permission),
 ):
     """查询记录，支持筛选和分页"""
     query = db.query(Record)
@@ -68,7 +81,7 @@ def get_records(
         "data": records,
         "total": total,
         "page_size": limit,
-        "current_page": skip // limit + 1
+        "current_page": skip // limit + 1,
     }
 
 
@@ -77,7 +90,8 @@ def get_stats(
     player_id: Optional[str] = None,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_view_permission),
 ):
     """获取统计数据"""
     query = db.query(Record)
@@ -98,7 +112,7 @@ def get_stats(
             total_purple_tubes=0,
             avg_gold_tubes=0.0,
             avg_purple_tubes=0.0,
-            player_count=0
+            player_count=0,
         )
 
     stats = query.with_entities(
@@ -106,7 +120,7 @@ def get_stats(
         func.sum(Record.purple_tubes).label("total_purple"),
         func.avg(Record.gold_tubes).label("avg_gold"),
         func.avg(Record.purple_tubes).label("avg_purple"),
-        func.count(func.distinct(Record.player_id)).label("player_count")
+        func.count(func.distinct(Record.player_id)).label("player_count"),
     ).first()
 
     return StatsResponse(
@@ -115,7 +129,7 @@ def get_stats(
         total_purple_tubes=stats.total_purple or 0,
         avg_gold_tubes=float(stats.avg_gold or 0),
         avg_purple_tubes=float(stats.avg_purple or 0),
-        player_count=stats.player_count or 0
+        player_count=stats.player_count or 0,
     )
 
 
@@ -124,7 +138,8 @@ def get_detailed_stats(
     player_id: Optional[str] = None,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_view_permission),
 ):
     """获取详细统计数据，按索拉等级和密音筒组合分组"""
     query = db.query(Record)
@@ -136,78 +151,83 @@ def get_detailed_stats(
     if end_date:
         query = query.filter(Record.date <= end_date)
 
-    # 按索拉等级和密音筒组合分组统计
     grouped_stats = query.with_entities(
         Record.sola_level,
         Record.gold_tubes,
         Record.purple_tubes,
-        func.count().label('count')
-    ).group_by(
-        Record.sola_level,
-        Record.gold_tubes,
-        Record.purple_tubes
-    ).all()
+        func.count().label("count"),
+    ).group_by(Record.sola_level, Record.gold_tubes, Record.purple_tubes).all()
 
-    # 组织数据结构
     level_data = {}
     for stat in grouped_stats:
         level = stat.sola_level
         if level not in level_data:
             level_data[level] = []
 
-        # 计算经验：金色 * 5000 + 紫色 * 2000
         experience = stat.gold_tubes * 5000 + stat.purple_tubes * 2000
 
-        level_data[level].append({
-            'gold_tubes': stat.gold_tubes,
-            'purple_tubes': stat.purple_tubes,
-            'experience': experience,
-            'count': stat.count
-        })
+        level_data[level].append(
+            {
+                "gold_tubes": stat.gold_tubes,
+                "purple_tubes": stat.purple_tubes,
+                "experience": experience,
+                "count": stat.count,
+            }
+        )
 
-    # 计算每个等级的统计数据
     level_stats = []
     for level in sorted(level_data.keys(), reverse=True):
         combinations_data = level_data[level]
-        total_count = sum(c['count'] for c in combinations_data)
+        total_count = sum(c["count"] for c in combinations_data)
 
-        # 计算平均经验
-        total_exp = sum(c['experience'] * c['count'] for c in combinations_data)
+        total_exp = sum(c["experience"] * c["count"] for c in combinations_data)
         avg_exp = total_exp / total_count if total_count > 0 else 0
 
-        # 计算每种组合的占比
         combinations = []
-        for combo in sorted(combinations_data,
-                          key=lambda x: (x['gold_tubes'], x['purple_tubes']),
-                          reverse=True):
-            percentage = (combo['count'] / total_count * 100) if total_count > 0 else 0
-            combinations.append(DropCombination(
-                gold_tubes=combo['gold_tubes'],
-                purple_tubes=combo['purple_tubes'],
-                experience=combo['experience'],
-                count=combo['count'],
-                percentage=round(percentage, 1)
-            ))
+        for combo in sorted(
+            combinations_data,
+            key=lambda x: (x["gold_tubes"], x["purple_tubes"]),
+            reverse=True,
+        ):
+            percentage = (combo["count"] / total_count * 100) if total_count > 0 else 0
+            combinations.append(
+                DropCombination(
+                    gold_tubes=combo["gold_tubes"],
+                    purple_tubes=combo["purple_tubes"],
+                    experience=combo["experience"],
+                    count=combo["count"],
+                    percentage=round(percentage, 1),
+                )
+            )
 
-        level_stats.append(SolaLevelStats(
-            sola_level=level,
-            combinations=combinations,
-            total_count=total_count,
-            avg_experience=round(avg_exp, 0)
-        ))
+        level_stats.append(
+            SolaLevelStats(
+                sola_level=level,
+                combinations=combinations,
+                total_count=total_count,
+                avg_experience=round(avg_exp, 0),
+            )
+        )
 
     return DetailedStatsResponse(level_stats=level_stats)
 
 
 @router.get("/player-ids", response_model=list[str])
-def get_player_ids(db: Session = Depends(get_db)):
+def get_player_ids(
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_view_permission),
+):
     """获取所有不重复的玩家ID列表"""
     player_ids = db.query(Record.player_id).distinct().all()
     return [pid[0] for pid in player_ids]
 
 
-@router.delete("/records/{record_id}")
-def delete_record(record_id: int, db: Session = Depends(get_db)):
+@router.delete("/tacet_records/{record_id}")
+def delete_record(
+    record_id: int,
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_edit_permission),
+):
     """删除指定记录"""
     record = db.query(Record).filter(Record.id == record_id).first()
     if not record:
@@ -216,3 +236,324 @@ def delete_record(record_id: int, db: Session = Depends(get_db)):
     db.delete(record)
     db.commit()
     return {"message": "删除成功"}
+
+
+@router.post("/ascension-records", response_model=list[AscensionRecordResponse])
+def create_ascension_records(
+    batch: AscensionRecordBatchCreate,
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_edit_permission),
+):
+    db_records = []
+    for record_data in batch.ascension_records:
+        db_record = AscensionRecord(**record_data.model_dump())
+        db_records.append(db_record)
+
+    db.add_all(db_records)
+    db.commit()
+
+    for record in db_records:
+        db.refresh(record)
+
+    return db_records
+
+
+@router.get("/ascension-records")
+def get_ascension_records(
+    player_id: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    sola_level: Optional[int] = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_view_permission),
+):
+    query = db.query(AscensionRecord)
+
+    if player_id:
+        query = query.filter(AscensionRecord.player_id == player_id)
+    if start_date:
+        query = query.filter(AscensionRecord.date >= start_date)
+    if end_date:
+        query = query.filter(AscensionRecord.date <= end_date)
+    if sola_level:
+        query = query.filter(AscensionRecord.sola_level == sola_level)
+
+    total = query.count()
+    records = query.order_by(AscensionRecord.created_at.desc(), AscensionRecord.id.desc()).offset(skip).limit(limit).all()
+
+    return {
+        "data": records,
+        "total": total,
+        "page_size": limit,
+        "current_page": skip // limit + 1,
+    }
+
+
+@router.get("/ascension-detailed-stats", response_model=AscensionDetailedStatsResponse)
+def get_ascension_detailed_stats(
+    player_id: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_view_permission),
+):
+    query = db.query(AscensionRecord)
+
+    if player_id:
+        query = query.filter(AscensionRecord.player_id == player_id)
+    if start_date:
+        query = query.filter(AscensionRecord.date >= start_date)
+    if end_date:
+        query = query.filter(AscensionRecord.date <= end_date)
+
+    grouped_stats = query.with_entities(
+        AscensionRecord.sola_level,
+        AscensionRecord.drop_count,
+        func.count().label("count"),
+    ).group_by(AscensionRecord.sola_level, AscensionRecord.drop_count).all()
+
+    level_data = {}
+    for stat in grouped_stats:
+        level = stat.sola_level
+        if level not in level_data:
+            level_data[level] = []
+
+        level_data[level].append(
+            {
+                "drop_count": stat.drop_count,
+                "count": stat.count,
+            }
+        )
+
+    level_stats = []
+    for level in sorted(level_data.keys(), reverse=True):
+        combinations_data = level_data[level]
+        total_count = sum(c["count"] for c in combinations_data)
+        total_drop_count = sum(c["drop_count"] * c["count"] for c in combinations_data)
+        avg_drop_count = total_drop_count / total_count if total_count > 0 else 0
+
+        combinations = []
+        for combo in sorted(combinations_data, key=lambda x: x["drop_count"], reverse=True):
+            percentage = (combo["count"] / total_count * 100) if total_count > 0 else 0
+            combinations.append(
+                AscensionDropCombination(
+                    drop_count=combo["drop_count"],
+                    count=combo["count"],
+                    percentage=round(percentage, 1),
+                )
+            )
+
+        level_stats.append(
+            AscensionSolaLevelStats(
+                sola_level=level,
+                combinations=combinations,
+                total_count=total_count,
+                avg_drop_count=round(avg_drop_count, 2),
+            )
+        )
+
+    return AscensionDetailedStatsResponse(level_stats=level_stats)
+
+
+@router.get("/ascension-player-ids", response_model=list[str])
+def get_ascension_player_ids(
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_view_permission),
+):
+    player_ids = db.query(AscensionRecord.player_id).distinct().all()
+    return [pid[0] for pid in player_ids]
+
+
+@router.delete("/ascension-records/{record_id}")
+def delete_ascension_record(
+    record_id: int,
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_edit_permission),
+):
+    record = db.query(AscensionRecord).filter(AscensionRecord.id == record_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="记录不存在")
+
+    db.delete(record)
+    db.commit()
+    return {"message": "删除成功"}
+
+
+@router.post("/resonance-records", response_model=list[ResonanceRecordResponse])
+def create_resonance_records(
+    batch: ResonanceRecordBatchCreate,
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_edit_permission),
+):
+    db_records = []
+    for record_data in batch.resonance_records:
+        db_record = ResonanceRecord(**record_data.model_dump())
+        db_records.append(db_record)
+
+    db.add_all(db_records)
+    db.commit()
+
+    for record in db_records:
+        db.refresh(record)
+
+    return db_records
+
+
+@router.get("/resonance-records")
+def get_resonance_records(
+    player_id: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    sola_level: Optional[int] = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_view_permission),
+):
+    query = db.query(ResonanceRecord)
+
+    if player_id:
+        query = query.filter(ResonanceRecord.player_id == player_id)
+    if start_date:
+        query = query.filter(ResonanceRecord.date >= start_date)
+    if end_date:
+        query = query.filter(ResonanceRecord.date <= end_date)
+    if sola_level:
+        query = query.filter(ResonanceRecord.sola_level == sola_level)
+
+    total = query.count()
+    records = query.order_by(ResonanceRecord.created_at.desc(), ResonanceRecord.id.desc()).offset(skip).limit(limit).all()
+
+    return {
+        "data": records,
+        "total": total,
+        "page_size": limit,
+        "current_page": skip // limit + 1,
+    }
+
+
+@router.get("/resonance-detailed-stats", response_model=ResonanceDetailedStatsResponse)
+def get_resonance_detailed_stats(
+    player_id: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_view_permission),
+):
+    query = db.query(ResonanceRecord)
+
+    if player_id:
+        query = query.filter(ResonanceRecord.player_id == player_id)
+    if start_date:
+        query = query.filter(ResonanceRecord.date >= start_date)
+    if end_date:
+        query = query.filter(ResonanceRecord.date <= end_date)
+
+    grouped_stats = query.with_entities(
+        ResonanceRecord.sola_level,
+        ResonanceRecord.gold,
+        ResonanceRecord.purple,
+        ResonanceRecord.blue,
+        ResonanceRecord.green,
+        func.count().label("count"),
+    ).group_by(
+        ResonanceRecord.sola_level,
+        ResonanceRecord.gold,
+        ResonanceRecord.purple,
+        ResonanceRecord.blue,
+        ResonanceRecord.green,
+    ).all()
+
+    level_data = {}
+    for stat in grouped_stats:
+        level = stat.sola_level
+        if level not in level_data:
+            level_data[level] = []
+
+        level_data[level].append(
+            {
+                "gold": stat.gold,
+                "purple": stat.purple,
+                "blue": stat.blue,
+                "green": stat.green,
+                "count": stat.count,
+            }
+        )
+
+    level_stats = []
+    for level in sorted(level_data.keys(), reverse=True):
+        combinations_data = level_data[level]
+        total_count = sum(c["count"] for c in combinations_data)
+
+        total_gold = sum(c["gold"] * c["count"] for c in combinations_data)
+        total_purple = sum(c["purple"] * c["count"] for c in combinations_data)
+        total_blue = sum(c["blue"] * c["count"] for c in combinations_data)
+        total_green = sum(c["green"] * c["count"] for c in combinations_data)
+
+        avg_gold = total_gold / total_count if total_count > 0 else 0
+        avg_purple = total_purple / total_count if total_count > 0 else 0
+        avg_blue = total_blue / total_count if total_count > 0 else 0
+        avg_green = total_green / total_count if total_count > 0 else 0
+
+        combinations = []
+        for combo in sorted(
+            combinations_data,
+            key=lambda x: (x["gold"], x["purple"], x["blue"], x["green"]),
+            reverse=True,
+        ):
+            percentage = (combo["count"] / total_count * 100) if total_count > 0 else 0
+            combinations.append(
+                ResonanceDropCombination(
+                    gold=combo["gold"],
+                    purple=combo["purple"],
+                    blue=combo["blue"],
+                    green=combo["green"],
+                    count=combo["count"],
+                    percentage=round(percentage, 1),
+                )
+            )
+
+        level_stats.append(
+            ResonanceSolaLevelStats(
+                sola_level=level,
+                combinations=combinations,
+                total_count=total_count,
+                avg_gold=round(avg_gold, 2),
+                avg_purple=round(avg_purple, 2),
+                avg_blue=round(avg_blue, 2),
+                avg_green=round(avg_green, 2),
+            )
+        )
+
+    return ResonanceDetailedStatsResponse(level_stats=level_stats)
+
+
+@router.get("/resonance-player-ids", response_model=list[str])
+def get_resonance_player_ids(
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_view_permission),
+):
+    player_ids = db.query(ResonanceRecord.player_id).distinct().all()
+    return [pid[0] for pid in player_ids]
+
+
+@router.delete("/resonance-records/{record_id}")
+def delete_resonance_record(
+    record_id: int,
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_edit_permission),
+):
+    record = db.query(ResonanceRecord).filter(ResonanceRecord.id == record_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="记录不存在")
+
+    db.delete(record)
+    db.commit()
+    return {"message": "删除成功"}
+
+
+@router.get("/auth/me")
+async def get_auth_me(permissions: list[str] = Depends(require_view_permission)):
+    return {"permissions": permissions}

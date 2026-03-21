@@ -2,7 +2,7 @@
   <el-card>
     <template #header>
       <div class="card-header">
-        <span>批量录入产出记录</span>
+        <span>批量录入突破材料掉落记录</span>
       </div>
     </template>
 
@@ -31,44 +31,20 @@
       </el-form-item>
 
       <el-form-item label="索拉等级">
-        <el-select v-model="form.sola_level" placeholder="选择索拉等级" @change="handleLevelChange">
+        <el-select v-model="form.sola_level" placeholder="选择索拉等级">
           <el-option v-for="level in solaLevels" :key="level" :label="`等级 ${level}`" :value="level" />
         </el-select>
       </el-form-item>
 
-      <el-form-item label="掉落组合">
-        <el-select
-          v-model="selectedComboKey"
-          placeholder="选择掉落组合"
-          @change="handleComboChange"
-        >
+      <el-form-item label="掉落数量">
+        <el-select v-model="form.drop_count" placeholder="选择掉落数量" style="width: 100%">
           <el-option
-            v-for="combo in availableCombos"
-            :key="combo.key"
-            :label="combo.label"
-            :value="combo.key"
-          >
-            <span class="material-gold">金{{ combo.gold }}</span>
-            <span> </span>
-            <span class="material-purple">紫{{ combo.purple }}</span>
-          </el-option>
+            v-for="drop in dropCountOptions"
+            :key="drop"
+            :label="`掉落 ${drop}`"
+            :value="drop"
+          />
         </el-select>
-        <div class="combo-hint" v-if="currentCombo">
-          <span class="material-gold">金{{ currentCombo.gold }}</span>
-          <span> </span>
-          <span class="material-purple">紫{{ currentCombo.purple }}</span>
-        </div>
-        <div class="exp-hint" v-if="currentCombo">
-          声骸经验：{{ currentCombo.experience.toLocaleString() }}
-        </div>
-      </el-form-item>
-
-      <el-form-item label="金色密音筒" class="material-item-gold">
-        <el-input-number v-model="form.gold_tubes" :min="0" disabled />
-      </el-form-item>
-
-      <el-form-item label="紫色密音筒" class="material-item-purple">
-        <el-input-number v-model="form.purple_tubes" :min="0" disabled />
       </el-form-item>
 
       <el-form-item label="录入次数">
@@ -93,52 +69,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
-import { recordApi } from '../api'
+import { ascensionApi } from '../api'
 
 const emit = defineEmits(['success'])
 
-const STORAGE_KEY = 'wuwa_last_player_id'
+const STORAGE_KEY = 'wuwa_last_ascension_player_id'
 const playerIds = ref<string[]>([])
 
-// 从localStorage获取上次使用的玩家ID
 const getStoredPlayerId = (): string | null => {
   return localStorage.getItem(STORAGE_KEY)
 }
 
-// 保存玩家ID到localStorage
 const savePlayerId = (playerId: string) => {
   localStorage.setItem(STORAGE_KEY, playerId)
 }
 
-// 固定掉落组合表（根据提供的表格）
-const combosByLevel: Record<number, { gold: number; purple: number; experience: number }[]> = {
-  8: [
-    { gold: 4, purple: 4, experience: 28000 },
-    { gold: 3, purple: 4, experience: 23000 }
-  ],
-  7: [
-    { gold: 4, purple: 4, experience: 28000 },
-    { gold: 4, purple: 3, experience: 26000 },
-    { gold: 3, purple: 4, experience: 23000 },
-    { gold: 3, purple: 3, experience: 21000 }
-  ],
-  6: [
-    { gold: 4, purple: 4, experience: 28000 },
-    { gold: 4, purple: 3, experience: 26000 },
-    { gold: 3, purple: 4, experience: 23000 },
-    { gold: 3, purple: 3, experience: 21000 }
-  ],
-  5: [
-    { gold: 3, purple: 6, experience: 27000 },
-    { gold: 3, purple: 5, experience: 25000 },
-    { gold: 2, purple: 6, experience: 22000 },
-    { gold: 2, purple: 5, experience: 20000 }
-  ]
+const solaLevels = [8, 7, 6, 5, 4, 3, 2, 1]
+
+const dropCountOptionsByLevel: Record<number, number[]> = {
+  8: [4, 5],
+  7: [4, 5],
+  6: [2, 3]
 }
 
-const solaLevels = [8, 7, 6, 5]
+const getDropCountOptions = (solaLevel: number) => dropCountOptionsByLevel[solaLevel] ?? []
 
 const loading = ref(false)
 const isDateManuallyEdited = ref(false)
@@ -189,58 +145,23 @@ const scheduleGameDateRefresh = () => {
 const form = reactive({
   date: getDefaultGameDate(),
   player_id: '',
-  gold_tubes: 0,
-  purple_tubes: 0,
   sola_level: 8,
+  drop_count: 4,
   count: 1
 })
 
-const selectedComboKey = ref('')
+const dropCountOptions = computed(() => getDropCountOptions(form.sola_level))
 
-const availableCombos = computed(() => {
-  const combos = combosByLevel[form.sola_level] || []
-  return combos.map((c) => ({
-    key: `${c.gold}-${c.purple}`,
-    label: `金${c.gold}|紫${c.purple}`,
-    ...c
-  }))
-})
-
-const currentCombo = computed(() =>
-  availableCombos.value.find((c) => c.key === selectedComboKey.value)
-)
-
-const getDefaultComboKey = (level: number) => {
-  const combos = combosByLevel[level] || []
-  if (level === 8) {
-    const preferred = combos.find((c) => c.gold === 3 && c.purple === 4)
-    if (preferred) {
-      return `${preferred.gold}-${preferred.purple}`
+watch(
+  () => form.sola_level,
+  (level) => {
+    const options = getDropCountOptions(level)
+    if (options.length > 0 && !options.includes(form.drop_count)) {
+      form.drop_count = options[0]
     }
-  }
-  const first = combos[0]
-  return first ? `${first.gold}-${first.purple}` : ''
-}
-
-const applyComboToForm = () => {
-  const combo = currentCombo.value || availableCombos.value[0]
-  if (combo) {
-    form.gold_tubes = combo.gold
-    form.purple_tubes = combo.purple
-  } else {
-    form.gold_tubes = 0
-    form.purple_tubes = 0
-  }
-}
-
-const handleLevelChange = () => {
-  selectedComboKey.value = getDefaultComboKey(form.sola_level)
-  applyComboToForm()
-}
-
-const handleComboChange = () => {
-  applyComboToForm()
-}
+  },
+  { immediate: true }
+)
 
 const handleDateChange = () => {
   isDateManuallyEdited.value = true
@@ -257,13 +178,11 @@ const handleSubmit = async () => {
     const records = Array(form.count).fill(null).map(() => ({
       date: form.date,
       player_id: form.player_id,
-      gold_tubes: form.gold_tubes,
-      purple_tubes: form.purple_tubes,
-      sola_level: form.sola_level
+      sola_level: form.sola_level,
+      drop_count: form.drop_count
     }))
 
-    await recordApi.createRecords(records)
-    // 保存玩家ID到localStorage
+    await ascensionApi.createRecords(records)
     savePlayerId(form.player_id)
     ElMessage.success(`成功录入 ${form.count} 条记录`)
     emit('success')
@@ -281,7 +200,6 @@ const queryPlayerIds = (queryString: string, cb: (results: { value: string }[]) 
     .slice(0, 10)
     .map((id) => ({ value: id }))
 
-  // 如果没有匹配，但用户有输入，返回用户的输入作为建议
   if (queryString && results.length === 0) {
     results.push({ value: queryString })
   }
@@ -290,7 +208,7 @@ const queryPlayerIds = (queryString: string, cb: (results: { value: string }[]) 
 
 const loadPlayerIds = async () => {
   try {
-    const response = await recordApi.getPlayerIds()
+    const response = await ascensionApi.getPlayerIds()
     playerIds.value = response.data
   } catch (error) {
     console.error('加载玩家ID列表失败:', error)
@@ -298,16 +216,14 @@ const loadPlayerIds = async () => {
 }
 
 const loadLastPlayerId = async () => {
-  // 优先从localStorage获取
   const stored = getStoredPlayerId()
   if (stored) {
     form.player_id = stored
     return
   }
 
-  // 备用：从服务器获取最近录入的玩家ID
   try {
-    const response = await recordApi.getRecords({ limit: 1 })
+    const response = await ascensionApi.getRecords({ limit: 1 })
     if (response.data.data.length > 0) {
       form.player_id = response.data.data[0].player_id
     }
@@ -320,14 +236,11 @@ const handleReset = () => {
   form.date = getDefaultGameDate()
   isDateManuallyEdited.value = false
   form.sola_level = 8
+  form.drop_count = getDropCountOptions(form.sola_level)[0] ?? 0
   form.count = 1
-  selectedComboKey.value = getDefaultComboKey(form.sola_level)
-  applyComboToForm()
 }
 
-// 初始化
 onMounted(async () => {
-  handleLevelChange()
   scheduleGameDateRefresh()
   loadPlayerIds()
   await loadLastPlayerId()
@@ -346,42 +259,5 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-
-.combo-hint {
-  margin-left: 12px;
-  font-size: 13px;
-}
-
-.exp-hint {
-  margin-left: 12px;
-  color: #606266;
-  font-size: 13px;
-}
-
-.material-gold {
-  color: #b8860b;
-  font-weight: 600;
-}
-
-.material-purple {
-  color: #7d3c98;
-  font-weight: 600;
-}
-
-:deep(.material-item-gold .el-form-item__label),
-:deep(.material-item-gold .el-input-number__decrease),
-:deep(.material-item-gold .el-input-number__increase),
-:deep(.material-item-gold .el-input-number__input) {
-  color: #b8860b;
-  font-weight: 600;
-}
-
-:deep(.material-item-purple .el-form-item__label),
-:deep(.material-item-purple .el-input-number__decrease),
-:deep(.material-item-purple .el-input-number__increase),
-:deep(.material-item-purple .el-input-number__input) {
-  color: #7d3c98;
-  font-weight: 600;
 }
 </style>

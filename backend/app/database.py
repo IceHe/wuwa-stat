@@ -8,6 +8,8 @@ from functools import lru_cache
 class Settings(BaseSettings):
     database_url: str
     frontend_url: str = "http://localhost:5173"
+    auth_service_url: str = "http://127.0.0.1:8080"
+    auth_service_timeout_seconds: float = 3.0
 
     class Config:
         env_file = ".env"

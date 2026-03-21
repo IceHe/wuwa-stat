@@ -85,16 +85,16 @@ npm run dev
 
 ```bash
 # 获取所有记录
-curl --noproxy localhost http://localhost:8000/api/records
+curl --noproxy localhost http://localhost:8000/api/tacet_records
 
 # 获取统计数据
 curl --noproxy localhost http://localhost:8000/api/stats
 
 # 批量创建记录
-curl --noproxy localhost -X POST http://localhost:8000/api/records \
+curl --noproxy localhost -X POST http://localhost:8000/api/tacet_records \
   -H "Content-Type: application/json" \
   -d '{
-    "records": [
+    "tacet_records": [
       {
         "date": "2025-08-18",
         "player_id": "120003177",
@@ -123,14 +123,27 @@ kill <PID>
 
 ## 数据库管理
 
+如从旧表 `tacet_stats` 升级到新命名，请先执行：
+
+```bash
+psql -U icehe -d postgres -c "ALTER TABLE tacet_stats RENAME TO tacet_records;"
+```
+
+如需同步索引命名（可选）：
+
+```bash
+psql -U icehe -d postgres -c "ALTER INDEX IF EXISTS idx_tacet_stats_date RENAME TO idx_tacet_records_date;"
+psql -U icehe -d postgres -c "ALTER INDEX IF EXISTS idx_tacet_stats_player_id RENAME TO idx_tacet_records_player_id;"
+```
+
 ### 查看数据
 ```bash
-psql -U icehe -d postgres -c "SELECT * FROM records;"
+psql -U icehe -d postgres -c "SELECT * FROM tacet_records;"
 ```
 
 ### 清空数据
 ```bash
-psql -U icehe -d postgres -c "TRUNCATE TABLE records;"
+psql -U icehe -d postgres -c "TRUNCATE TABLE tacet_records;"
 ```
 
 ## 项目结构

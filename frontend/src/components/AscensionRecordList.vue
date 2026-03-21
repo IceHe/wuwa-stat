@@ -19,22 +19,7 @@
       <el-table-column prop="date" label="日期" width="120" />
       <el-table-column prop="player_id" label="玩家ID" width="150" />
       <el-table-column prop="sola_level" label="索拉等级" width="100" />
-      <el-table-column prop="gold_tubes" width="120" align="center">
-        <template #header>
-          <span class="material-gold">金色密音筒</span>
-        </template>
-        <template #default="{ row }">
-          <span class="material-gold">{{ row.gold_tubes }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="purple_tubes" width="120" align="center">
-        <template #header>
-          <span class="material-purple">紫色密音筒</span>
-        </template>
-        <template #default="{ row }">
-          <span class="material-purple">{{ row.purple_tubes }}</span>
-        </template>
-      </el-table-column>
+      <el-table-column prop="drop_count" label="掉落数量" width="120" />
       <el-table-column prop="created_at" label="录入时间" width="180">
         <template #default="{ row }">
           {{ formatDateTime(row.created_at) }}
@@ -70,7 +55,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch, onMounted } from 'vue'
-import { recordApi, type Record } from '../api'
+import { ascensionApi, type AscensionRecord } from '../api'
 import { ElMessage } from 'element-plus'
 
 const props = defineProps<{
@@ -79,7 +64,7 @@ const props = defineProps<{
 }>()
 
 const loading = ref(false)
-const records = ref<Record[]>([])
+const records = ref<AscensionRecord[]>([])
 const filters = reactive({
   player_id: '',
   sola_level: undefined as number | undefined
@@ -98,7 +83,7 @@ const loadRecords = async () => {
     if (filters.player_id) params.player_id = filters.player_id
     if (filters.sola_level) params.sola_level = filters.sola_level
 
-    const response = await recordApi.getRecords(params)
+    const response = await ascensionApi.getRecords(params)
     records.value = response.data.data || []
     total.value = response.data.total || 0
   } catch (error) {
@@ -138,7 +123,7 @@ const formatDateTime = (dateStr: string) => {
 
 const handleDelete = async (id: number) => {
   try {
-    await recordApi.deleteRecord(id)
+    await ascensionApi.deleteRecord(id)
     ElMessage.success('删除成功')
     loadRecords()
   } catch (error) {
@@ -163,15 +148,5 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   margin-top: 12px;
-}
-
-.material-gold {
-  color: #b8860b;
-  font-weight: 600;
-}
-
-.material-purple {
-  color: #7d3c98;
-  font-weight: 600;
 }
 </style>

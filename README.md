@@ -102,8 +102,23 @@ npm run dev
 
 ## 数据库表结构
 
+如果你是从旧表 `tacet_stats` 升级，请先执行：
+
 ```sql
-CREATE TABLE records (
+ALTER TABLE tacet_stats RENAME TO tacet_records;
+```
+
+如需保持索引命名一致性，可按实际索引名再执行重命名。
+
+```sql
+ALTER INDEX IF EXISTS idx_tacet_stats_date RENAME TO idx_tacet_records_date;
+ALTER INDEX IF EXISTS idx_tacet_stats_player_id RENAME TO idx_tacet_records_player_id;
+```
+
+当前表结构：
+
+```sql
+CREATE TABLE tacet_records (
     id SERIAL PRIMARY KEY,
     date DATE NOT NULL,
     player_id VARCHAR NOT NULL,
@@ -113,8 +128,8 @@ CREATE TABLE records (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_records_date ON records(date);
-CREATE INDEX idx_records_player_id ON records(player_id);
+CREATE INDEX idx_tacet_records_date ON tacet_records(date);
+CREATE INDEX idx_tacet_records_player_id ON tacet_records(player_id);
 ```
 
 ## 开发说明

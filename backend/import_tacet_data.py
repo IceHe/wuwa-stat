@@ -6,9 +6,9 @@ from app.models import Record
 
 # 清空表
 db = SessionLocal()
-db.execute(text("DELETE FROM tacet_stats"))
+db.execute(text("DELETE FROM tacet_records"))
 db.commit()
-print("已清空 tacet_stats 表")
+print("已清空 tacet_records 表")
 
 # 解析导入
 count = 0

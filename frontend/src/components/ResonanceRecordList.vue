@@ -19,20 +19,36 @@
       <el-table-column prop="date" label="日期" width="120" />
       <el-table-column prop="player_id" label="玩家ID" width="150" />
       <el-table-column prop="sola_level" label="索拉等级" width="100" />
-      <el-table-column prop="gold_tubes" width="120" align="center">
+      <el-table-column prop="gold" width="80" align="center">
         <template #header>
-          <span class="material-gold">金色密音筒</span>
+          <span class="material-gold">金</span>
         </template>
         <template #default="{ row }">
-          <span class="material-gold">{{ row.gold_tubes }}</span>
+          <span class="material-gold">{{ row.gold }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="purple_tubes" width="120" align="center">
+      <el-table-column prop="purple" width="80" align="center">
         <template #header>
-          <span class="material-purple">紫色密音筒</span>
+          <span class="material-purple">紫</span>
         </template>
         <template #default="{ row }">
-          <span class="material-purple">{{ row.purple_tubes }}</span>
+          <span class="material-purple">{{ row.purple }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="blue" width="80" align="center">
+        <template #header>
+          <span class="material-blue">蓝</span>
+        </template>
+        <template #default="{ row }">
+          <span class="material-blue">{{ row.blue }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="green" width="80" align="center">
+        <template #header>
+          <span class="material-green">绿</span>
+        </template>
+        <template #default="{ row }">
+          <span class="material-green">{{ row.green }}</span>
         </template>
       </el-table-column>
       <el-table-column prop="created_at" label="录入时间" width="180">
@@ -70,7 +86,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch, onMounted } from 'vue'
-import { recordApi, type Record } from '../api'
+import { resonanceApi, type ResonanceRecord } from '../api'
 import { ElMessage } from 'element-plus'
 
 const props = defineProps<{
@@ -79,7 +95,7 @@ const props = defineProps<{
 }>()
 
 const loading = ref(false)
-const records = ref<Record[]>([])
+const records = ref<ResonanceRecord[]>([])
 const filters = reactive({
   player_id: '',
   sola_level: undefined as number | undefined
@@ -98,7 +114,7 @@ const loadRecords = async () => {
     if (filters.player_id) params.player_id = filters.player_id
     if (filters.sola_level) params.sola_level = filters.sola_level
 
-    const response = await recordApi.getRecords(params)
+    const response = await resonanceApi.getRecords(params)
     records.value = response.data.data || []
     total.value = response.data.total || 0
   } catch (error) {
@@ -138,7 +154,7 @@ const formatDateTime = (dateStr: string) => {
 
 const handleDelete = async (id: number) => {
   try {
-    await recordApi.deleteRecord(id)
+    await resonanceApi.deleteRecord(id)
     ElMessage.success('删除成功')
     loadRecords()
   } catch (error) {
@@ -172,6 +188,16 @@ onMounted(() => {
 
 .material-purple {
   color: #7d3c98;
+  font-weight: 600;
+}
+
+.material-blue {
+  color: #1f78ff;
+  font-weight: 600;
+}
+
+.material-green {
+  color: #2e8b57;
   font-weight: 600;
 }
 </style>
