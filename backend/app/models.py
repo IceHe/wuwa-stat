@@ -11,6 +11,7 @@ class Record(Base):
     player_id = Column(String, nullable=False, index=True)
     gold_tubes = Column(Integer, nullable=False, default=0)
     purple_tubes = Column(Integer, nullable=False, default=0)
+    claim_count = Column(Integer, nullable=False, default=1)
     sola_level = Column(Integer, nullable=False, default=8)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

@@ -22,6 +22,7 @@ export interface Record {
   player_id: string
   gold_tubes: number
   purple_tubes: number
+  claim_count: 1 | 2
   sola_level: number
   created_at?: string
 }
@@ -35,6 +36,7 @@ export interface RecordsResponse {
 
 export interface Stats {
   total_records: number
+  total_claim_count: number
   total_gold_tubes: number
   total_purple_tubes: number
   avg_gold_tubes: number
@@ -45,6 +47,7 @@ export interface Stats {
 export interface DropCombination {
   gold_tubes: number
   purple_tubes: number
+  claim_count: number
   experience: number
   count: number
   percentage: number

@@ -8,6 +8,7 @@ class RecordBase(BaseModel):
     player_id: str
     gold_tubes: int = Field(ge=0, description="金色密音筒数量")
     purple_tubes: int = Field(ge=0, description="紫色密音筒数量")
+    claim_count: int = Field(default=1, ge=1, le=2, description="领取次数")
     sola_level: int = Field(default=8, ge=1, description="索拉等级")
 
 
@@ -27,8 +28,16 @@ class RecordResponse(RecordBase):
         from_attributes = True
 
 
+class RecordsListResponse(BaseModel):
+    data: list[RecordResponse]
+    total: int
+    page_size: int
+    current_page: int
+
+
 class StatsResponse(BaseModel):
     total_records: int
+    total_claim_count: int
     total_gold_tubes: int
     total_purple_tubes: int
     avg_gold_tubes: float
@@ -40,6 +49,7 @@ class DropCombination(BaseModel):
     """密音筒产出组合"""
     gold_tubes: int
     purple_tubes: int
+    claim_count: int
     experience: int
     count: int
     percentage: float

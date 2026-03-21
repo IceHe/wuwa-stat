@@ -2,7 +2,7 @@
   <el-card>
     <template #header>
       <div class="card-header">
-        <span>批量录入产出记录</span>
+        <span>录入产出记录</span>
       </div>
     </template>
 
@@ -43,6 +43,23 @@
         </div>
       </el-form-item>
 
+      <el-form-item label="领取次数">
+        <div class="option-button-group">
+          <el-button
+            :type="form.claim_count === 1 ? 'primary' : 'default'"
+            @click="handleClaimCountChange(1)"
+          >
+            1次领取
+          </el-button>
+          <el-button
+            :type="form.claim_count === 2 ? 'primary' : 'default'"
+            @click="handleClaimCountChange(2)"
+          >
+            2次领取
+          </el-button>
+        </div>
+      </el-form-item>
+
       <el-form-item label="掉落组合">
         <div class="option-button-group">
           <el-button
@@ -61,6 +78,9 @@
           <span> </span>
           <span class="material-purple">紫{{ currentCombo.purple }}</span>
         </div>
+        <div class="exp-hint">
+          {{ form.claim_count === 1 ? '单次领取组合' : '两次领取合并后的组合' }}
+        </div>
         <div class="exp-hint" v-if="currentCombo">
           声骸经验：{{ currentCombo.experience.toLocaleString() }}
         </div>
@@ -72,17 +92,6 @@
 
       <el-form-item label="紫色密音筒" class="material-item-purple">
         <el-input-number v-model="form.purple_tubes" :min="0" disabled />
-      </el-form-item>
-
-      <el-form-item label="录入次数">
-        <el-input-number
-          v-model="form.count"
-          :min="1"
-          :max="10"
-        />
-        <el-text type="info" size="small" style="margin-left: 10px">
-          相同数据录入多次（例如双倍领取）
-        </el-text>
       </el-form-item>
 
       <el-form-item>
@@ -195,34 +204,85 @@ const form = reactive({
   gold_tubes: 0,
   purple_tubes: 0,
   sola_level: 8,
-  count: 1
+  claim_count: 1 as ClaimCount,
 })
+
+type ClaimCount = 1 | 2
+
+type TacetCombo = {
+  key: string
+  label: string
+  gold: number
+  purple: number
+  experience: number
+}
 
 const selectedComboKey = ref('')
 
-const availableCombos = computed(() => {
-  const combos = combosByLevel[form.sola_level] || []
-  return combos.map((c) => ({
-    key: `${c.gold}-${c.purple}`,
-    label: `金${c.gold}|紫${c.purple}`,
-    ...c
+const buildSingleCombos = (level: number): TacetCombo[] => {
+  const combos = combosByLevel[level] || []
+  return combos.map((combo) => ({
+    key: `${combo.gold}-${combo.purple}`,
+    label: `金${combo.gold}|紫${combo.purple}`,
+    ...combo
   }))
+}
+
+const buildDoubleCombos = (level: number): TacetCombo[] => {
+  const sourceCombos = combosByLevel[level] || []
+  const comboMap = new Map<string, TacetCombo>()
+
+  sourceCombos.forEach((leftCombo) => {
+    sourceCombos.forEach((rightCombo) => {
+      const gold = leftCombo.gold + rightCombo.gold
+      const purple = leftCombo.purple + rightCombo.purple
+      const key = `${gold}-${purple}`
+      if (!comboMap.has(key)) {
+        comboMap.set(key, {
+          key,
+          label: `金${gold}|紫${purple}`,
+          gold,
+          purple,
+          experience: gold * 5000 + purple * 2000
+        })
+      }
+    })
+  })
+
+  return Array.from(comboMap.values()).sort((a, b) => {
+    if (b.gold !== a.gold) {
+      return b.gold - a.gold
+    }
+    return b.purple - a.purple
+  })
+}
+
+const availableCombos = computed<TacetCombo[]>(() => {
+  return form.claim_count === 1
+    ? buildSingleCombos(form.sola_level)
+    : buildDoubleCombos(form.sola_level)
 })
 
 const currentCombo = computed(() =>
-  availableCombos.value.find((c) => c.key === selectedComboKey.value)
+  availableCombos.value.find((combo) => combo.key === selectedComboKey.value) || null
 )
 
-const getDefaultComboKey = (level: number) => {
-  const combos = combosByLevel[level] || []
+const getDefaultComboKey = (level: number, claimCount: ClaimCount) => {
+  const combos = claimCount === 1 ? buildSingleCombos(level) : buildDoubleCombos(level)
   if (level === 8) {
-    const preferred = combos.find((c) => c.gold === 3 && c.purple === 4)
-    if (preferred) {
-      return `${preferred.gold}-${preferred.purple}`
+    if (claimCount === 1) {
+      const preferred = combos.find((combo) => combo.gold === 3 && combo.purple === 4)
+      if (preferred) {
+        return preferred.key
+      }
+    } else {
+      const preferred = combos.find((combo) => combo.gold === 7 && combo.purple === 8)
+      if (preferred) {
+        return preferred.key
+      }
     }
   }
-  const first = combos[0]
-  return first ? `${first.gold}-${first.purple}` : ''
+  return combos[0]?.key || ''
 }
 
 const applyComboToForm = () => {
@@ -237,7 +297,16 @@ const applyComboToForm = () => {
 }
 
 const handleLevelChange = () => {
-  selectedComboKey.value = getDefaultComboKey(form.sola_level)
+  selectedComboKey.value = getDefaultComboKey(form.sola_level, form.claim_count)
+  applyComboToForm()
+}
+
+const handleClaimCountChange = (claimCount: ClaimCount) => {
+  if (form.claim_count === claimCount) {
+    return
+  }
+  form.claim_count = claimCount
+  selectedComboKey.value = getDefaultComboKey(form.sola_level, form.claim_count)
   applyComboToForm()
 }
 
@@ -257,18 +326,19 @@ const handleSubmit = async () => {
 
   loading.value = true
   try {
-    const records = Array(form.count).fill(null).map(() => ({
+    const records = [{
       date: form.date,
       player_id: form.player_id,
       gold_tubes: form.gold_tubes,
       purple_tubes: form.purple_tubes,
+      claim_count: form.claim_count,
       sola_level: form.sola_level
-    }))
+    }]
 
     await recordApi.createRecords(records)
     // 保存玩家ID到localStorage
     savePlayerId(form.player_id)
-    ElMessage.success(`成功录入 ${form.count} 条记录`)
+    ElMessage.success('录入成功')
     emit('success')
     handleReset()
   } catch (error) {
@@ -323,8 +393,8 @@ const handleReset = () => {
   form.date = getDefaultGameDate()
   isDateManuallyEdited.value = false
   form.sola_level = 8
-  form.count = 1
-  selectedComboKey.value = getDefaultComboKey(form.sola_level)
+  form.claim_count = 1
+  selectedComboKey.value = getDefaultComboKey(form.sola_level, form.claim_count)
   applyComboToForm()
 }
 

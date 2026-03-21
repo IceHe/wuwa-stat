@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="鸣潮统计图标">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f2a36" />
+      <stop offset="100%" stop-color="#1a4b57" />
+    </linearGradient>
+    <linearGradient id="wave" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f6d36b" />
+      <stop offset="100%" stop-color="#e18b2d" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#bg)" />
+  <path
+    d="M12 38c6-10 10-15 15-15 6 0 7 7 11 7 4 0 7-5 14-16l4 2c-7 13-12 20-19 20-6 0-7-7-11-7-3 0-6 4-10 11Z"
+    fill="url(#wave)"
+  />
+  <path
+    d="M17 48h7l4-12 4 8 3-8 3 12h8l-6-23h-5l-4 10-4-10h-5Z"
+    fill="#f8f4e8"
+  />
+</svg>

@@ -17,6 +17,7 @@ from app.schemas import (
     DetailedStatsResponse,
     DropCombination,
     RecordBatchCreate,
+    RecordsListResponse,
     RecordResponse,
     ResonanceDetailedStatsResponse,
     ResonanceDropCombination,
@@ -28,6 +29,34 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/api", tags=["tacet_records"])
+
+
+TACET_SINGLE_COMBOS = {
+    8: [(4, 4), (3, 4)],
+    7: [(4, 4), (4, 3), (3, 4), (3, 3)],
+    6: [(4, 4), (4, 3), (3, 4), (3, 3)],
+    5: [(3, 6), (3, 5), (2, 6), (2, 5)],
+}
+
+
+def split_tacet_combination(sola_level: int, gold_tubes: int, purple_tubes: int, claim_count: int) -> list[tuple[int, int]]:
+    if claim_count <= 1:
+        return [(gold_tubes, purple_tubes)]
+
+    combos = TACET_SINGLE_COMBOS.get(sola_level, [])
+    matching_pairs: list[list[tuple[int, int]]] = []
+
+    for left_combo in combos:
+        for right_combo in combos:
+            if left_combo[0] + right_combo[0] == gold_tubes and left_combo[1] + right_combo[1] == purple_tubes:
+                ordered_pair = sorted([left_combo, right_combo], reverse=True)
+                matching_pairs.append(ordered_pair)
+
+    if not matching_pairs:
+        return [(gold_tubes, purple_tubes)]
+
+    matching_pairs.sort(reverse=True)
+    return matching_pairs[0]
 
 
 @router.post("/tacet_records", response_model=list[RecordResponse])
@@ -51,7 +80,7 @@ def create_records(
     return db_records
 
 
-@router.get("/tacet_records")
+@router.get("/tacet_records", response_model=RecordsListResponse)
 def get_records(
     player_id: Optional[str] = None,
     start_date: Optional[date] = None,
@@ -108,6 +137,7 @@ def get_stats(
     if total_records == 0:
         return StatsResponse(
             total_records=0,
+            total_claim_count=0,
             total_gold_tubes=0,
             total_purple_tubes=0,
             avg_gold_tubes=0.0,
@@ -116,19 +146,23 @@ def get_stats(
         )
 
     stats = query.with_entities(
+        func.sum(Record.claim_count).label("total_claim_count"),
         func.sum(Record.gold_tubes).label("total_gold"),
         func.sum(Record.purple_tubes).label("total_purple"),
-        func.avg(Record.gold_tubes).label("avg_gold"),
-        func.avg(Record.purple_tubes).label("avg_purple"),
         func.count(func.distinct(Record.player_id)).label("player_count"),
     ).first()
 
+    total_claim_count = int(stats.total_claim_count or 0)
+    avg_gold = float(stats.total_gold or 0) / total_claim_count if total_claim_count > 0 else 0.0
+    avg_purple = float(stats.total_purple or 0) / total_claim_count if total_claim_count > 0 else 0.0
+
     return StatsResponse(
         total_records=total_records,
+        total_claim_count=total_claim_count,
         total_gold_tubes=stats.total_gold or 0,
         total_purple_tubes=stats.total_purple or 0,
-        avg_gold_tubes=float(stats.avg_gold or 0),
-        avg_purple_tubes=float(stats.avg_purple or 0),
+        avg_gold_tubes=avg_gold,
+        avg_purple_tubes=avg_purple,
         player_count=stats.player_count or 0,
     )
 
@@ -153,49 +187,50 @@ def get_detailed_stats(
 
     grouped_stats = query.with_entities(
         Record.sola_level,
+        Record.claim_count,
         Record.gold_tubes,
         Record.purple_tubes,
         func.count().label("count"),
-    ).group_by(Record.sola_level, Record.gold_tubes, Record.purple_tubes).all()
+    ).group_by(Record.sola_level, Record.claim_count, Record.gold_tubes, Record.purple_tubes).all()
 
-    level_data = {}
+    level_data: dict[int, dict[tuple[int, int], int]] = {}
     for stat in grouped_stats:
         level = stat.sola_level
         if level not in level_data:
-            level_data[level] = []
+            level_data[level] = {}
 
-        experience = stat.gold_tubes * 5000 + stat.purple_tubes * 2000
-
-        level_data[level].append(
-            {
-                "gold_tubes": stat.gold_tubes,
-                "purple_tubes": stat.purple_tubes,
-                "experience": experience,
-                "count": stat.count,
-            }
+        split_combos = split_tacet_combination(
+            stat.sola_level,
+            stat.gold_tubes,
+            stat.purple_tubes,
+            stat.claim_count,
         )
+        for split_gold, split_purple in split_combos:
+            combo_key = (split_gold, split_purple)
+            level_data[level][combo_key] = level_data[level].get(combo_key, 0) + stat.count
 
     level_stats = []
     for level in sorted(level_data.keys(), reverse=True):
         combinations_data = level_data[level]
-        total_count = sum(c["count"] for c in combinations_data)
-
-        total_exp = sum(c["experience"] * c["count"] for c in combinations_data)
+        total_count = sum(combinations_data.values())
+        total_exp = sum((gold * 5000 + purple * 2000) * count for (gold, purple), count in combinations_data.items())
         avg_exp = total_exp / total_count if total_count > 0 else 0
 
         combinations = []
-        for combo in sorted(
-            combinations_data,
-            key=lambda x: (x["gold_tubes"], x["purple_tubes"]),
+        for (gold_tubes, purple_tubes), count in sorted(
+            combinations_data.items(),
+            key=lambda item: item[0],
             reverse=True,
         ):
-            percentage = (combo["count"] / total_count * 100) if total_count > 0 else 0
+            experience = gold_tubes * 5000 + purple_tubes * 2000
+            percentage = (count / total_count * 100) if total_count > 0 else 0
             combinations.append(
                 DropCombination(
-                    gold_tubes=combo["gold_tubes"],
-                    purple_tubes=combo["purple_tubes"],
-                    experience=combo["experience"],
-                    count=combo["count"],
+                    claim_count=1,
+                    gold_tubes=gold_tubes,
+                    purple_tubes=purple_tubes,
+                    experience=experience,
+                    count=count,
                     percentage=round(percentage, 1),
                 )
             )

@@ -43,7 +43,8 @@ with open("data/data_20260318.txt", "r", encoding="utf-8") as f:
                 player_id=player_id,
                 sola_level=sola_level,
                 gold_tubes=gold_tubes,
-                purple_tubes=purple_tubes
+                purple_tubes=purple_tubes,
+                claim_count=1,
             )
             db.add(record)
             count += 1

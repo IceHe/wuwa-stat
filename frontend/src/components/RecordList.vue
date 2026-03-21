@@ -19,6 +19,11 @@
       <el-table-column prop="date" label="日期" width="120" />
       <el-table-column prop="player_id" label="玩家ID" width="150" />
       <el-table-column prop="sola_level" label="索拉等级" width="100" />
+      <el-table-column prop="claim_count" label="领取次数" width="100" align="center">
+        <template #default="{ row }">
+          {{ row.claim_count }}次
+        </template>
+      </el-table-column>
       <el-table-column prop="gold_tubes" width="120" align="center">
         <template #header>
           <span class="material-gold">金色密音筒</span>

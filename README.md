@@ -76,12 +76,14 @@ npm run dev
 ## 功能特性
 
 ### 数据录入
-- 支持批量录入相同数据（例如双倍领取）
+- 支持区分领取 1 次和领取 2 次
+- 领取 2 次按两次领取合并后的结果录入，例如 `金7紫8`
 - 记录字段：
   - 日期
   - 玩家ID
   - 金色密音筒数量
   - 紫色密音筒数量
+  - 领取次数（1/2）
   - 索拉等级（默认8级）
 
 ### 数据查询
@@ -124,12 +126,19 @@ CREATE TABLE tacet_records (
     player_id VARCHAR NOT NULL,
     gold_tubes INTEGER NOT NULL DEFAULT 0,
     purple_tubes INTEGER NOT NULL DEFAULT 0,
+    claim_count INTEGER NOT NULL DEFAULT 1,
     sola_level INTEGER NOT NULL DEFAULT 8,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE INDEX idx_tacet_records_date ON tacet_records(date);
 CREATE INDEX idx_tacet_records_player_id ON tacet_records(player_id);
+```
+
+如果你的 `tacet_records` 已存在但缺少 `claim_count`，执行：
+
+```sql
+ALTER TABLE tacet_records ADD COLUMN IF NOT EXISTS claim_count INTEGER NOT NULL DEFAULT 1;
 ```
 
 ## 开发说明

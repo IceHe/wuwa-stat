@@ -1,10 +1,37 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import engine, Base, settings
+from sqlalchemy import inspect, text
+
 from app.api.routes import router
+from app.database import engine, Base, settings
+
+
+def ensure_tacet_record_schema():
+    inspector = inspect(engine)
+    if "tacet_records" not in inspector.get_table_names():
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("tacet_records")}
+
+    with engine.begin() as connection:
+        if "claim_count" not in columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE tacet_records "
+                    "ADD COLUMN claim_count INTEGER NOT NULL DEFAULT 1"
+                )
+            )
+            if "reward_mode" in columns:
+                connection.execute(
+                    text(
+                        "UPDATE tacet_records "
+                        "SET claim_count = CASE WHEN reward_mode = 'double' THEN 2 ELSE 1 END"
+                    )
+                )
 
 # 创建数据库表
 Base.metadata.create_all(bind=engine)
+ensure_tacet_record_schema()
 
 app = FastAPI(
     title="鸣潮无音区产出统计",

@@ -65,9 +65,9 @@ npm run dev
 ### 1. 录入数据
 - 选择日期
 - 输入玩家ID
-- 输入金色/紫色密音筒数量
 - 选择索拉等级
-- 设置录入次数（支持批量录入相同数据）
+- 选择领取次数（1次或2次）
+- 选择对应的金色/紫色密音筒组合
 
 ### 2. 查看记录
 - 查看所有产出记录
@@ -98,8 +98,9 @@ curl --noproxy localhost -X POST http://localhost:8000/api/tacet_records \
       {
         "date": "2025-08-18",
         "player_id": "120003177",
-        "gold_tubes": 5,
-        "purple_tubes": 3,
+        "gold_tubes": 7,
+        "purple_tubes": 8,
+        "claim_count": 2,
         "sola_level": 8
       }
     ]
@@ -134,6 +135,12 @@ psql -U icehe -d postgres -c "ALTER TABLE tacet_stats RENAME TO tacet_records;"
 ```bash
 psql -U icehe -d postgres -c "ALTER INDEX IF EXISTS idx_tacet_stats_date RENAME TO idx_tacet_records_date;"
 psql -U icehe -d postgres -c "ALTER INDEX IF EXISTS idx_tacet_stats_player_id RENAME TO idx_tacet_records_player_id;"
+```
+
+如 `tacet_records` 已存在但缺少领取次数字段：
+
+```bash
+psql -U icehe -d postgres -c "ALTER TABLE tacet_records ADD COLUMN IF NOT EXISTS claim_count INTEGER NOT NULL DEFAULT 1;"
 ```
 
 ### 查看数据

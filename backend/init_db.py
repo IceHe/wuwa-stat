@@ -18,6 +18,7 @@ def init_db():
     print("  - player_id: 玩家ID")
     print("  - gold_tubes: 金色密音筒数量")
     print("  - purple_tubes: 紫色密音筒数量")
+    print("  - claim_count: 领取次数（1/2）")
     print("  - sola_level: 索拉等级")
     print("  - created_at: 创建时间")
 
