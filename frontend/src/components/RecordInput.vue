@@ -31,28 +31,31 @@
       </el-form-item>
 
       <el-form-item label="索拉等级">
-        <el-select v-model="form.sola_level" placeholder="选择索拉等级" @change="handleLevelChange">
-          <el-option v-for="level in solaLevels" :key="level" :label="`等级 ${level}`" :value="level" />
-        </el-select>
+        <div class="option-button-group">
+          <el-button
+            v-for="level in solaLevels"
+            :key="level"
+            :type="form.sola_level === level ? 'primary' : 'default'"
+            @click="form.sola_level !== level && ((form.sola_level = level), handleLevelChange())"
+          >
+            等级 {{ level }}
+          </el-button>
+        </div>
       </el-form-item>
 
       <el-form-item label="掉落组合">
-        <el-select
-          v-model="selectedComboKey"
-          placeholder="选择掉落组合"
-          @change="handleComboChange"
-        >
-          <el-option
+        <div class="option-button-group">
+          <el-button
             v-for="combo in availableCombos"
             :key="combo.key"
-            :label="combo.label"
-            :value="combo.key"
+            :type="selectedComboKey === combo.key ? 'primary' : 'default'"
+            @click="selectedComboKey !== combo.key && ((selectedComboKey = combo.key), handleComboChange())"
           >
             <span class="material-gold">金{{ combo.gold }}</span>
             <span> </span>
             <span class="material-purple">紫{{ combo.purple }}</span>
-          </el-option>
-        </el-select>
+          </el-button>
+        </div>
         <div class="combo-hint" v-if="currentCombo">
           <span class="material-gold">金{{ currentCombo.gold }}</span>
           <span> </span>
@@ -346,6 +349,12 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.option-button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .combo-hint {

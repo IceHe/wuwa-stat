@@ -31,20 +31,29 @@
       </el-form-item>
 
       <el-form-item label="索拉等级">
-        <el-select v-model="form.sola_level" placeholder="选择索拉等级">
-          <el-option v-for="level in solaLevels" :key="level" :label="`等级 ${level}`" :value="level" />
-        </el-select>
+        <div class="option-button-group">
+          <el-button
+            v-for="level in solaLevels"
+            :key="level"
+            :type="form.sola_level === level ? 'primary' : 'default'"
+            @click="form.sola_level = level"
+          >
+            等级 {{ level }}
+          </el-button>
+        </div>
       </el-form-item>
 
       <el-form-item label="掉落数量">
-        <el-select v-model="form.drop_count" placeholder="选择掉落数量" style="width: 100%">
-          <el-option
+        <div class="option-button-group">
+          <el-button
             v-for="drop in dropCountOptions"
             :key="drop"
-            :label="`掉落 ${drop}`"
-            :value="drop"
-          />
-        </el-select>
+            :type="form.drop_count === drop ? 'primary' : 'default'"
+            @click="form.drop_count = drop"
+          >
+            掉落 {{ drop }}
+          </el-button>
+        </div>
       </el-form-item>
 
       <el-form-item label="录入次数">
@@ -259,5 +268,11 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.option-button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 </style>

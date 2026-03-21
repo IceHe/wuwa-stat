@@ -31,43 +31,78 @@
       </el-form-item>
 
       <el-form-item label="索拉等级">
-        <el-select v-model="form.sola_level" placeholder="选择索拉等级">
-          <el-option v-for="level in solaLevels" :key="level" :label="`等级 ${level}`" :value="level" />
-        </el-select>
+        <div class="option-button-group">
+          <el-button
+            v-for="level in solaLevels"
+            :key="level"
+            :type="form.sola_level === level ? 'primary' : 'default'"
+            @click="form.sola_level = level"
+          >
+            等级 {{ level }}
+          </el-button>
+        </div>
       </el-form-item>
 
       <el-form-item label="金" class="material-item-gold">
         <template v-if="goldOptions.length > 0">
-          <el-select v-model="form.gold" placeholder="选择金色掉落">
-            <el-option v-for="value in goldOptions" :key="`gold-${value}`" :label="value" :value="value" />
-          </el-select>
+          <div class="option-button-group">
+            <el-button
+              v-for="value in goldOptions"
+              :key="`gold-${value}`"
+              :type="form.gold === value ? 'primary' : 'default'"
+              @click="form.gold = value"
+            >
+              {{ value }}
+            </el-button>
+          </div>
         </template>
         <el-input-number v-else v-model="form.gold" :min="0" />
       </el-form-item>
 
       <el-form-item label="紫" class="material-item-purple">
         <template v-if="purpleOptions.length > 0">
-          <el-select v-model="form.purple" placeholder="选择紫色掉落">
-            <el-option v-for="value in purpleOptions" :key="`purple-${value}`" :label="value" :value="value" />
-          </el-select>
+          <div class="option-button-group">
+            <el-button
+              v-for="value in purpleOptions"
+              :key="`purple-${value}`"
+              :type="form.purple === value ? 'primary' : 'default'"
+              @click="form.purple = value"
+            >
+              {{ value }}
+            </el-button>
+          </div>
         </template>
         <el-input-number v-else v-model="form.purple" :min="0" />
       </el-form-item>
 
       <el-form-item label="蓝" class="material-item-blue">
         <template v-if="blueOptions.length > 0">
-          <el-select v-model="form.blue" placeholder="选择蓝色掉落">
-            <el-option v-for="value in blueOptions" :key="`blue-${value}`" :label="value" :value="value" />
-          </el-select>
+          <div class="option-button-group">
+            <el-button
+              v-for="value in blueOptions"
+              :key="`blue-${value}`"
+              :type="form.blue === value ? 'primary' : 'default'"
+              @click="form.blue = value"
+            >
+              {{ value }}
+            </el-button>
+          </div>
         </template>
         <el-input-number v-else v-model="form.blue" :min="0" />
       </el-form-item>
 
       <el-form-item label="绿" class="material-item-green">
         <template v-if="greenOptions.length > 0">
-          <el-select v-model="form.green" placeholder="选择绿色掉落">
-            <el-option v-for="value in greenOptions" :key="`green-${value}`" :label="value" :value="value" />
-          </el-select>
+          <div class="option-button-group">
+            <el-button
+              v-for="value in greenOptions"
+              :key="`green-${value}`"
+              :type="form.green === value ? 'primary' : 'default'"
+              @click="form.green = value"
+            >
+              {{ value }}
+            </el-button>
+          </div>
         </template>
         <el-input-number v-else v-model="form.green" :min="0" />
       </el-form-item>
@@ -381,6 +416,12 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.option-button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 :deep(.material-item-gold .el-form-item__label),
