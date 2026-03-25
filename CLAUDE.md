@@ -32,12 +32,6 @@ pip install -r requirements.txt
 # Initialize database (creates tables)
 python init_db.py
 
-# Import sample data
-python import_sample_data.py
-
-# Import tacet data from backend/data/
-python import_tacet_data.py
-
 # Start development server
 uvicorn app.main:app --reload --port 8000
 ```
@@ -74,9 +68,7 @@ backend/
 │   ├── auth.py         # External auth service integration
 │   └── api/
 │       └── routes.py   # API endpoints for all three modules
-├── data/               # Import data files
 ├── init_db.py          # Database initialization script
-├── import_*.py         # Data import scripts
 └── .env                # Runtime configuration
 ```
 
@@ -101,12 +93,6 @@ Tables:
 - `tacet_records`
 - `ascension_records`
 - `resonance_records`
-
-Legacy migration note for Tacet records:
-- `ALTER TABLE tacet_stats RENAME TO tacet_records;`
-- `ALTER INDEX IF EXISTS idx_tacet_stats_date RENAME TO idx_tacet_records_date;`
-- `ALTER INDEX IF EXISTS idx_tacet_stats_player_id RENAME TO idx_tacet_records_player_id;`
-- `ALTER TABLE tacet_records ADD COLUMN IF NOT EXISTS claim_count INTEGER NOT NULL DEFAULT 1;`
 
 ## API Endpoints
 

@@ -23,9 +23,7 @@
 │   │   ├── auth.py       # Token 鉴权
 │   │   └── api/
 │   │       └── routes.py # 三类统计模块 API
-│   ├── data/             # 导入脚本使用的数据文件
 │   ├── init_db.py        # 初始化数据库
-│   ├── import_*.py       # 数据导入脚本
 │   ├── requirements.txt
 │   └── .env.example
 └── frontend/             # Vue 3 前端
@@ -128,22 +126,13 @@ npm run dev
 - `ascension_records`：共鸣者突破材料记录
 - `resonance_records`：凝素领域产出记录
 
-如果你是从旧版无音区表 `tacet_stats` 升级，请先执行：
-
-```sql
-ALTER TABLE tacet_stats RENAME TO tacet_records;
-ALTER INDEX IF EXISTS idx_tacet_stats_date RENAME TO idx_tacet_records_date;
-ALTER INDEX IF EXISTS idx_tacet_stats_player_id RENAME TO idx_tacet_records_player_id;
-ALTER TABLE tacet_records ADD COLUMN IF NOT EXISTS claim_count INTEGER NOT NULL DEFAULT 1;
-```
-
 ## 开发说明
 
 ### 后端开发
 
 - API 位于 `backend/app/api/routes.py`
 - 数据库模型位于 `backend/app/models.py`
-- 当前通过 `Base.metadata.create_all()` 建表，未引入独立迁移框架
+- 当前通过 `Base.metadata.create_all()` 建表
 - OpenAPI 文档标题与描述由 `backend/app/main.py` 提供
 
 ### 前端开发
