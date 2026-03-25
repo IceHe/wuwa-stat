@@ -1,33 +1,43 @@
-# 鸣潮无音区产出统计工具
+# 鸣潮统计网页工具
 
-统计鸣潮游戏无音区的金色和紫色密音筒产出数据。
+用于录入、查询和统计《鸣潮》多类副本产出数据的网页工具，目前包含：
+- 无音区产出统计
+- 共鸣者突破材料统计
+- 凝素领域产出统计
 
 ## 技术栈
 
 - **后端**: FastAPI + SQLAlchemy + PostgreSQL
 - **前端**: Vue 3 + TypeScript + Element Plus + Vite
+- **鉴权**: 基于外部鉴权服务的 Token 权限校验
 
 ## 项目结构
 
-```
-├── backend/          # FastAPI 后端
+```text
+├── backend/              # FastAPI 后端
 │   ├── app/
-│   │   ├── main.py       # 主应用
+│   │   ├── main.py       # 主应用与 OpenAPI 配置
 │   │   ├── models.py     # 数据库模型
 │   │   ├── schemas.py    # Pydantic schemas
-│   │   ├── database.py   # 数据库连接
+│   │   ├── database.py   # 数据库连接与配置
+│   │   ├── auth.py       # Token 鉴权
 │   │   └── api/
-│   │       └── routes.py # API 路由
+│   │       └── routes.py # 三类统计模块 API
+│   ├── data/             # 导入脚本使用的数据文件
+│   ├── init_db.py        # 初始化数据库
+│   ├── import_*.py       # 数据导入脚本
 │   ├── requirements.txt
 │   └── .env.example
-└── frontend/         # Vue 3 前端
+└── frontend/             # Vue 3 前端
     ├── src/
     │   ├── main.ts
-    │   ├── App.vue
-    │   ├── components/   # 组件
-    │   └── api/          # API 调用
+    │   ├── App.vue       # 三个统计标签页入口
+    │   ├── components/   # 录入、列表、统计组件
+    │   └── api/          # API 调用与鉴权状态
     └── package.json
 ```
+
+说明：项目只有顶层 `frontend/` 这一个前端工程。
 
 ## 快速开始
 
@@ -44,127 +54,124 @@ createdb wuthering_waves
 ```bash
 cd backend
 
-# 复制环境配置文件
 cp .env.example .env
+# 编辑 .env 中的 DATABASE_URL 和 FRONTEND_URL
 
-# 编辑 .env 文件，填入你的数据库连接信息
-# DATABASE_URL=postgresql://username:password@localhost:5432/wuthering_waves
-
-# 安装依赖
 pip install -r requirements.txt
-
-# 启动后端服务
-uvicorn app.main:app --reload --port 8001
+python init_db.py
+uvicorn app.main:app --reload --port 8000
 ```
 
-后端将运行在 http://localhost:8001
+后端将运行在 `http://localhost:8000`
 
 ### 3. 前端设置
 
 ```bash
 cd frontend
-
-# 安装依赖
 npm install
-
-# 启动开发服务器
 npm run dev
 ```
 
-前端将运行在 http://localhost:5173
+前端将运行在 `http://localhost:5173`
+
+如果 npm 访问较慢，可以使用镜像：
+
+```bash
+cd frontend
+npm install --registry=https://registry.npmmirror.com
+npm run dev
+```
+
+### 4. 鉴权说明
+
+前后端接口默认需要 Token 鉴权，后端会向外部鉴权服务校验权限。
+
+- 需要至少 `view` 权限才能查看数据
+- 需要 `edit` 或 `manage` 权限才能新增、删除记录
+- 默认鉴权服务地址为 `http://127.0.0.1:8080`
 
 ## 功能特性
 
-### 数据录入
-- 支持区分领取 1 次和领取 2 次
-- 领取 2 次按两次领取合并后的结果录入，例如 `金7紫8`
-- 记录字段：
-  - 日期
-  - 玩家ID
-  - 金色密音筒数量
-  - 紫色密音筒数量
-  - 领取次数（1/2）
-  - 索拉等级（默认8级）
+### 无音区产出统计
 
-### 数据查询
-- 按玩家ID筛选
-- 按索拉等级筛选
-- 按日期范围筛选
-- 分页显示
+- 记录金色/紫色密音筒产出
+- 支持领取 1 次和领取 2 次录入
+- 支持按玩家 ID、索拉等级、日期范围筛选
+- 提供基础统计和按索拉等级拆分的详细统计
 
-### 统计分析
-- 总记录数
-- 玩家数量
-- 金色/紫色密音筒总数
-- 平均产出数量
+### 共鸣者突破材料统计
+
+- 记录每次掉落的突破材料数量
+- 支持按玩家 ID、索拉等级、日期范围筛选
+- 提供按索拉等级分组的掉落分布和均值统计
+
+### 凝素领域产出统计
+
+- 记录金、紫、蓝、绿四档掉落数量
+- 支持按玩家 ID、索拉等级、日期范围筛选
+- 提供按索拉等级分组的组合分布和均值统计
+
+### 通用能力
+
+- Token 登录与权限控制
+- 分页列表查询
+- 删除单条记录
+- API 通过 Vite 代理到后端
 
 ## API 文档
 
-启动后端后访问：http://localhost:8000/docs
+启动后访问：`http://localhost:8000/docs`
 
-## 数据库表结构
+## 数据模型
 
-如果你是从旧表 `tacet_stats` 升级，请先执行：
+- `tacet_records`：无音区产出记录
+- `ascension_records`：共鸣者突破材料记录
+- `resonance_records`：凝素领域产出记录
+
+如果你是从旧版无音区表 `tacet_stats` 升级，请先执行：
 
 ```sql
 ALTER TABLE tacet_stats RENAME TO tacet_records;
-```
-
-如需保持索引命名一致性，可按实际索引名再执行重命名。
-
-```sql
 ALTER INDEX IF EXISTS idx_tacet_stats_date RENAME TO idx_tacet_records_date;
 ALTER INDEX IF EXISTS idx_tacet_stats_player_id RENAME TO idx_tacet_records_player_id;
-```
-
-当前表结构：
-
-```sql
-CREATE TABLE tacet_records (
-    id SERIAL PRIMARY KEY,
-    date DATE NOT NULL,
-    player_id VARCHAR NOT NULL,
-    gold_tubes INTEGER NOT NULL DEFAULT 0,
-    purple_tubes INTEGER NOT NULL DEFAULT 0,
-    claim_count INTEGER NOT NULL DEFAULT 1,
-    sola_level INTEGER NOT NULL DEFAULT 8,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE INDEX idx_tacet_records_date ON tacet_records(date);
-CREATE INDEX idx_tacet_records_player_id ON tacet_records(player_id);
-```
-
-如果你的 `tacet_records` 已存在但缺少 `claim_count`，执行：
-
-```sql
 ALTER TABLE tacet_records ADD COLUMN IF NOT EXISTS claim_count INTEGER NOT NULL DEFAULT 1;
 ```
 
 ## 开发说明
 
 ### 后端开发
-- 使用 FastAPI 的自动文档功能测试 API
-- 数据库迁移使用 SQLAlchemy 的 `Base.metadata.create_all()`
+
+- API 位于 `backend/app/api/routes.py`
+- 数据库模型位于 `backend/app/models.py`
+- 当前通过 `Base.metadata.create_all()` 建表，未引入独立迁移框架
+- OpenAPI 文档标题与描述由 `backend/app/main.py` 提供
 
 ### 前端开发
-- 使用 Element Plus 组件库
-- API 请求通过 Vite 代理转发到后端
+
+- 入口页在 `frontend/src/App.vue`
+- 三类统计模块分别对应各自的 Input/List/Stats 组件
+- API 请求通过 Vite 代理到 `http://localhost:8000`
 - TypeScript 提供类型安全
 
 ## 部署
 
 ### 后端部署
+
 ```bash
+cd backend
 pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 ### 前端部署
+
 ```bash
+cd frontend
+npm install
 npm run build
-# 将 dist/ 目录部署到静态服务器
 ```
+
+将 `dist/` 目录部署到静态文件服务器即可。
 
 ## 许可证
 

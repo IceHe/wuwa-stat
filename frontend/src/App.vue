@@ -2,7 +2,7 @@
   <el-container class="container">
     <el-header>
       <div class="header-content">
-        <h1>鸣潮统计</h1>
+        <h1>鸣潮统计网页工具</h1>
         <el-button v-if="isLoggedIn" @click="handleLogout">退出登录</el-button>
       </div>
     </el-header>
@@ -37,9 +37,9 @@
 
       <el-tabs v-else v-model="activeTab">
         <el-tab-pane label="无音区产出统计" name="tacet" lazy>
-          <RecordInput v-if="canEdit" @success="handleInputSuccess" />
-          <RecordList :refresh="refreshTrigger" :can-edit="canEdit" class="mt-16" />
-          <StatsView :refresh="refreshTrigger" class="mt-16" />
+          <TacetRecordInput v-if="canEdit" @success="handleInputSuccess" />
+          <TacetRecordList :refresh="refreshTrigger" :can-edit="canEdit" class="mt-16" />
+          <TacetStatsView :refresh="refreshTrigger" class="mt-16" />
         </el-tab-pane>
 
         <el-tab-pane label="共鸣者突破材料统计" name="ascension" lazy>
@@ -61,9 +61,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import RecordInput from './components/RecordInput.vue'
-import RecordList from './components/RecordList.vue'
-import StatsView from './components/StatsView.vue'
+import TacetRecordInput from './components/TacetRecordInput.vue'
+import TacetRecordList from './components/TacetRecordList.vue'
+import TacetStatsView from './components/TacetStatsView.vue'
 import AscensionRecordInput from './components/AscensionRecordInput.vue'
 import AscensionRecordList from './components/AscensionRecordList.vue'
 import AscensionStatsView from './components/AscensionStatsView.vue'

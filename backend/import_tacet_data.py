@@ -1,8 +1,13 @@
 import re
 from datetime import datetime
+from pathlib import Path
+
 from sqlalchemy import text
+
 from app.database import SessionLocal
 from app.models import Record
+
+DATA_FILE = Path(__file__).resolve().parent / "data" / "data_20260318.txt"
 
 # 清空表
 db = SessionLocal()
@@ -12,7 +17,7 @@ print("已清空 tacet_records 表")
 
 # 解析导入
 count = 0
-with open("data/data_20260318.txt", "r", encoding="utf-8") as f:
+with DATA_FILE.open("r", encoding="utf-8") as f:
     next(f)  # 跳过表头
     for line in f:
         line = line.strip()

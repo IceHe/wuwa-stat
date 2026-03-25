@@ -74,7 +74,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch, onMounted } from 'vue'
-import { recordApi, type DetailedStats } from '../api'
+import { tacetApi, type TacetDetailedStats } from '../api'
 import { ElMessage } from 'element-plus'
 
 const props = defineProps<{
@@ -82,7 +82,7 @@ const props = defineProps<{
 }>()
 
 const loading = ref(false)
-const detailedStats = ref<DetailedStats>({
+const detailedStats = ref<TacetDetailedStats>({
   level_stats: []
 })
 
@@ -96,7 +96,7 @@ const loadStats = async () => {
     const params: any = {}
     if (filters.player_id) params.player_id = filters.player_id
 
-    const response = await recordApi.getDetailedStats(params)
+    const response = await tacetApi.getDetailedStats(params)
     detailedStats.value = response.data
   } catch (error) {
     ElMessage.error('加载失败: ' + (error as Error).message)

@@ -16,7 +16,7 @@ const api = axios.create({
 
 export type Permission = 'manage' | 'view' | 'edit'
 
-export interface Record {
+export interface TacetRecord {
   id?: number
   date: string
   player_id: string
@@ -27,14 +27,14 @@ export interface Record {
   created_at?: string
 }
 
-export interface RecordsResponse {
-  data: Record[]
+export interface TacetRecordsResponse {
+  data: TacetRecord[]
   total: number
   page_size: number
   current_page: number
 }
 
-export interface Stats {
+export interface TacetStats {
   total_records: number
   total_claim_count: number
   total_gold_tubes: number
@@ -44,7 +44,7 @@ export interface Stats {
   player_count: number
 }
 
-export interface DropCombination {
+export interface TacetDropCombination {
   gold_tubes: number
   purple_tubes: number
   claim_count: number
@@ -53,15 +53,15 @@ export interface DropCombination {
   percentage: number
 }
 
-export interface SolaLevelStats {
+export interface TacetSolaLevelStats {
   sola_level: number
-  combinations: DropCombination[]
+  combinations: TacetDropCombination[]
   total_count: number
   avg_experience: number
 }
 
-export interface DetailedStats {
-  level_stats: SolaLevelStats[]
+export interface TacetDetailedStats {
+  level_stats: TacetSolaLevelStats[]
 }
 
 export interface AscensionRecord {
@@ -232,9 +232,9 @@ export const authApi = {
   me: () => getAuthPermissions()
 }
 
-export const recordApi = {
-  createRecords: (records: Record[]) =>
-    api.post<Record[]>('/tacet_records', { tacet_records: records }),
+export const tacetApi = {
+  createRecords: (records: TacetRecord[]) =>
+    api.post<TacetRecord[]>('/tacet_records', { tacet_records: records }),
 
   getRecords: (params?: {
     player_id?: string
@@ -243,19 +243,19 @@ export const recordApi = {
     sola_level?: number
     skip?: number
     limit?: number
-  }) => api.get<RecordsResponse>('/tacet_records', { params }),
+  }) => api.get<TacetRecordsResponse>('/tacet_records', { params }),
 
   getStats: (params?: {
     player_id?: string
     start_date?: string
     end_date?: string
-  }) => api.get<Stats>('/stats', { params }),
+  }) => api.get<TacetStats>('/stats', { params }),
 
   getDetailedStats: (params?: {
     player_id?: string
     start_date?: string
     end_date?: string
-  }) => api.get<DetailedStats>('/detailed-stats', { params }),
+  }) => api.get<TacetDetailedStats>('/detailed-stats', { params }),
 
   getPlayerIds: () => api.get<string[]>('/player-ids'),
 

@@ -28,7 +28,7 @@ from app.schemas import (
     StatsResponse,
 )
 
-router = APIRouter(prefix="/api", tags=["tacet_records"])
+router = APIRouter(prefix="/api")
 
 
 TACET_SINGLE_COMBOS = {
@@ -59,7 +59,7 @@ def split_tacet_combination(sola_level: int, gold_tubes: int, purple_tubes: int,
     return matching_pairs[0]
 
 
-@router.post("/tacet_records", response_model=list[RecordResponse])
+@router.post("/tacet_records", response_model=list[RecordResponse], tags=["tacet"])
 def create_records(
     batch: RecordBatchCreate,
     db: Session = Depends(get_db),
@@ -80,7 +80,7 @@ def create_records(
     return db_records
 
 
-@router.get("/tacet_records", response_model=RecordsListResponse)
+@router.get("/tacet_records", response_model=RecordsListResponse, tags=["tacet"])
 def get_records(
     player_id: Optional[str] = None,
     start_date: Optional[date] = None,
@@ -114,7 +114,7 @@ def get_records(
     }
 
 
-@router.get("/stats", response_model=StatsResponse)
+@router.get("/stats", response_model=StatsResponse, tags=["tacet"])
 def get_stats(
     player_id: Optional[str] = None,
     start_date: Optional[date] = None,
@@ -167,7 +167,7 @@ def get_stats(
     )
 
 
-@router.get("/detailed-stats", response_model=DetailedStatsResponse)
+@router.get("/detailed-stats", response_model=DetailedStatsResponse, tags=["tacet"])
 def get_detailed_stats(
     player_id: Optional[str] = None,
     start_date: Optional[date] = None,
@@ -247,7 +247,7 @@ def get_detailed_stats(
     return DetailedStatsResponse(level_stats=level_stats)
 
 
-@router.get("/player-ids", response_model=list[str])
+@router.get("/player-ids", response_model=list[str], tags=["tacet"])
 def get_player_ids(
     db: Session = Depends(get_db),
     _: list[str] = Depends(require_view_permission),
@@ -257,7 +257,7 @@ def get_player_ids(
     return [pid[0] for pid in player_ids]
 
 
-@router.delete("/tacet_records/{record_id}")
+@router.delete("/tacet_records/{record_id}", tags=["tacet"])
 def delete_record(
     record_id: int,
     db: Session = Depends(get_db),
@@ -273,7 +273,7 @@ def delete_record(
     return {"message": "删除成功"}
 
 
-@router.post("/ascension-records", response_model=list[AscensionRecordResponse])
+@router.post("/ascension-records", response_model=list[AscensionRecordResponse], tags=["ascension"])
 def create_ascension_records(
     batch: AscensionRecordBatchCreate,
     db: Session = Depends(get_db),
@@ -293,7 +293,7 @@ def create_ascension_records(
     return db_records
 
 
-@router.get("/ascension-records")
+@router.get("/ascension-records", tags=["ascension"])
 def get_ascension_records(
     player_id: Optional[str] = None,
     start_date: Optional[date] = None,
@@ -326,7 +326,7 @@ def get_ascension_records(
     }
 
 
-@router.get("/ascension-detailed-stats", response_model=AscensionDetailedStatsResponse)
+@router.get("/ascension-detailed-stats", response_model=AscensionDetailedStatsResponse, tags=["ascension"])
 def get_ascension_detailed_stats(
     player_id: Optional[str] = None,
     start_date: Optional[date] = None,
@@ -392,7 +392,7 @@ def get_ascension_detailed_stats(
     return AscensionDetailedStatsResponse(level_stats=level_stats)
 
 
-@router.get("/ascension-player-ids", response_model=list[str])
+@router.get("/ascension-player-ids", response_model=list[str], tags=["ascension"])
 def get_ascension_player_ids(
     db: Session = Depends(get_db),
     _: list[str] = Depends(require_view_permission),
@@ -401,7 +401,7 @@ def get_ascension_player_ids(
     return [pid[0] for pid in player_ids]
 
 
-@router.delete("/ascension-records/{record_id}")
+@router.delete("/ascension-records/{record_id}", tags=["ascension"])
 def delete_ascension_record(
     record_id: int,
     db: Session = Depends(get_db),
@@ -416,7 +416,7 @@ def delete_ascension_record(
     return {"message": "删除成功"}
 
 
-@router.post("/resonance-records", response_model=list[ResonanceRecordResponse])
+@router.post("/resonance-records", response_model=list[ResonanceRecordResponse], tags=["resonance"])
 def create_resonance_records(
     batch: ResonanceRecordBatchCreate,
     db: Session = Depends(get_db),
@@ -436,7 +436,7 @@ def create_resonance_records(
     return db_records
 
 
-@router.get("/resonance-records")
+@router.get("/resonance-records", tags=["resonance"])
 def get_resonance_records(
     player_id: Optional[str] = None,
     start_date: Optional[date] = None,
@@ -469,7 +469,7 @@ def get_resonance_records(
     }
 
 
-@router.get("/resonance-detailed-stats", response_model=ResonanceDetailedStatsResponse)
+@router.get("/resonance-detailed-stats", response_model=ResonanceDetailedStatsResponse, tags=["resonance"])
 def get_resonance_detailed_stats(
     player_id: Optional[str] = None,
     start_date: Optional[date] = None,
@@ -565,7 +565,7 @@ def get_resonance_detailed_stats(
     return ResonanceDetailedStatsResponse(level_stats=level_stats)
 
 
-@router.get("/resonance-player-ids", response_model=list[str])
+@router.get("/resonance-player-ids", response_model=list[str], tags=["resonance"])
 def get_resonance_player_ids(
     db: Session = Depends(get_db),
     _: list[str] = Depends(require_view_permission),
@@ -574,7 +574,7 @@ def get_resonance_player_ids(
     return [pid[0] for pid in player_ids]
 
 
-@router.delete("/resonance-records/{record_id}")
+@router.delete("/resonance-records/{record_id}", tags=["resonance"])
 def delete_resonance_record(
     record_id: int,
     db: Session = Depends(get_db),
@@ -589,6 +589,6 @@ def delete_resonance_record(
     return {"message": "删除成功"}
 
 
-@router.get("/auth/me")
+@router.get("/auth/me", tags=["auth"])
 async def get_auth_me(permissions: list[str] = Depends(require_view_permission)):
     return {"permissions": permissions}

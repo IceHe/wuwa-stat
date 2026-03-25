@@ -1,97 +1,94 @@
 # 启动指南
 
-## 当前状态
+适用于“鸣潮统计网页工具”，当前包含：
+- 无音区产出统计
+- 共鸣者突破材料统计
+- 凝素领域产出统计
 
-✅ **后端已启动并运行正常**
-- 地址：http://localhost:8000
-- API文档：http://localhost:8000/docs
-- 数据库已创建并导入示例数据
+## 启动后端
+
+```bash
+cd /root/wuwa/wuwa_stat/backend
+
+cp .env.example .env
+# 按实际情况编辑 .env 中的 DATABASE_URL 和 FRONTEND_URL
+
+pip install -r requirements.txt
+python init_db.py
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+启动后访问：
+- 应用接口：`http://localhost:8000`
+- API 文档：`http://localhost:8000/docs`
+- 健康检查：`http://localhost:8000/health`
 
 ## 启动前端
 
-由于网络问题，前端依赖安装失败。请手动执行以下步骤：
-
-### 方法1：使用淘宝镜像（推荐）
-
 ```bash
-cd /Users/icehe/Projects/claude-1st-try/frontend
-
-# 清理旧的依赖
-rm -rf node_modules package-lock.json
-
-# 使用淘宝镜像安装
-npm install --registry=https://registry.npmmirror.com
-
-# 启动开发服务器
-npm run dev
-```
-
-### 方法2：配置npm镜像后安装
-
-```bash
-cd /Users/icehe/Projects/claude-1st-try/frontend
-
-# 设置淘宝镜像
-npm config set registry https://registry.npmmirror.com
-
-# 安装依赖
+cd /root/wuwa/wuwa_stat/frontend
 npm install
-
-# 启动开发服务器
 npm run dev
 ```
 
-### 方法3：使用cnpm
+前端默认地址：`http://localhost:5173`
+
+如果 npm 网络较慢，可改用镜像：
 
 ```bash
-# 安装cnpm
-npm install -g cnpm --registry=https://registry.npmmirror.com
-
-cd /Users/icehe/Projects/claude-1st-try/frontend
-
-# 使用cnpm安装
-cnpm install
-
-# 启动开发服务器
+cd /root/wuwa/wuwa_stat/frontend
+npm install --registry=https://registry.npmmirror.com
 npm run dev
 ```
 
-## 访问应用
+## 鉴权说明
 
-前端启动成功后，访问：http://localhost:5173
+项目默认接入外部鉴权服务，接口会校验 Token 权限。
 
-## 功能说明
+- 默认鉴权服务地址：`http://127.0.0.1:8080`
+- `view` 权限：允许查看列表和统计
+- `edit` 权限：允许新增和删除记录
+- `manage` 权限：包含全部权限
 
-### 1. 录入数据
-- 选择日期
-- 输入玩家ID
-- 选择索拉等级
-- 选择领取次数（1次或2次）
-- 选择对应的金色/紫色密音筒组合
+如果鉴权服务不可用，前端登录和后端受保护接口都会失败。
 
-### 2. 查看记录
-- 查看所有产出记录
-- 按玩家ID筛选
-- 按索拉等级筛选
+## 页面功能
 
-### 3. 统计数据
-- 总记录数
-- 玩家数量
-- 金色/紫色密音筒总数和平均值
+### 无音区产出统计
 
-## 测试API
+- 录入金色/紫色密音筒产出
+- 支持单次和双次领取
+- 支持列表筛选、分页和统计分析
 
-后端API已经可以直接使用：
+### 共鸣者突破材料统计
+
+- 录入每次突破材料掉落数量
+- 支持列表筛选、分页和按索拉等级统计
+
+### 凝素领域产出统计
+
+- 录入金、紫、蓝、绿四档掉落数量
+- 支持列表筛选、分页和组合分布统计
+
+## 常用接口示例
+
+以下示例假设你已经准备好可用 Token，并替换 `${TOKEN}`。
 
 ```bash
-# 获取所有记录
-curl --noproxy localhost http://localhost:8000/api/tacet_records
+curl --noproxy localhost \
+  -H "Authorization: Bearer ${TOKEN}" \
+  "http://localhost:8000/api/tacet_records"
 
-# 获取统计数据
-curl --noproxy localhost http://localhost:8000/api/stats
+curl --noproxy localhost \
+  -H "Authorization: Bearer ${TOKEN}" \
+  "http://localhost:8000/api/ascension-records"
 
-# 批量创建记录
-curl --noproxy localhost -X POST http://localhost:8000/api/tacet_records \
+curl --noproxy localhost \
+  -H "Authorization: Bearer ${TOKEN}" \
+  "http://localhost:8000/api/resonance-detailed-stats"
+
+curl --noproxy localhost -X POST "http://localhost:8000/api/tacet_records" \
+  -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{
     "tacet_records": [
@@ -109,70 +106,21 @@ curl --noproxy localhost -X POST http://localhost:8000/api/tacet_records \
 
 ## 停止服务
 
-### 停止后端
-后端正在后台运行，如需停止：
-```bash
-# 查找进程
-ps aux | grep uvicorn
+- 停止后端：结束运行 `uvicorn` 的终端或进程
+- 停止前端：结束运行 `npm run dev` 的终端
 
-# 停止进程（替换PID为实际进程号）
-kill <PID>
-```
+## 数据库备注
 
-### 停止前端
-在前端运行的终端按 `Ctrl+C`
+当前会自动创建以下表：
+- `tacet_records`
+- `ascension_records`
+- `resonance_records`
 
-## 数据库管理
-
-如从旧表 `tacet_stats` 升级到新命名，请先执行：
+如果你是从旧版无音区表升级：
 
 ```bash
-psql -U icehe -d postgres -c "ALTER TABLE tacet_stats RENAME TO tacet_records;"
-```
-
-如需同步索引命名（可选）：
-
-```bash
-psql -U icehe -d postgres -c "ALTER INDEX IF EXISTS idx_tacet_stats_date RENAME TO idx_tacet_records_date;"
-psql -U icehe -d postgres -c "ALTER INDEX IF EXISTS idx_tacet_stats_player_id RENAME TO idx_tacet_records_player_id;"
-```
-
-如 `tacet_records` 已存在但缺少领取次数字段：
-
-```bash
-psql -U icehe -d postgres -c "ALTER TABLE tacet_records ADD COLUMN IF NOT EXISTS claim_count INTEGER NOT NULL DEFAULT 1;"
-```
-
-### 查看数据
-```bash
-psql -U icehe -d postgres -c "SELECT * FROM tacet_records;"
-```
-
-### 清空数据
-```bash
-psql -U icehe -d postgres -c "TRUNCATE TABLE tacet_records;"
-```
-
-## 项目结构
-
-```
-.
-├── backend/              # FastAPI后端
-│   ├── app/
-│   │   ├── main.py      # 主应用
-│   │   ├── models.py    # 数据库模型
-│   │   ├── schemas.py   # API schemas
-│   │   ├── database.py  # 数据库配置
-│   │   └── api/
-│   │       └── routes.py # API路由
-│   ├── init_db.py       # 初始化数据库
-│   ├── import_sample_data.py # 导入示例数据
-│   └── .env             # 环境配置
-└── frontend/            # Vue 3前端
-    ├── src/
-    │   ├── App.vue
-    │   ├── main.ts
-    │   ├── components/  # 组件
-    │   └── api/         # API调用
-    └── vite.config.ts
+psql -U <user> -d <db> -c "ALTER TABLE tacet_stats RENAME TO tacet_records;"
+psql -U <user> -d <db> -c "ALTER INDEX IF EXISTS idx_tacet_stats_date RENAME TO idx_tacet_records_date;"
+psql -U <user> -d <db> -c "ALTER INDEX IF EXISTS idx_tacet_stats_player_id RENAME TO idx_tacet_records_player_id;"
+psql -U <user> -d <db> -c "ALTER TABLE tacet_records ADD COLUMN IF NOT EXISTS claim_count INTEGER NOT NULL DEFAULT 1;"
 ```

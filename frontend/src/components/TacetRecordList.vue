@@ -75,7 +75,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch, onMounted } from 'vue'
-import { recordApi, type Record } from '../api'
+import { tacetApi, type TacetRecord } from '../api'
 import { ElMessage } from 'element-plus'
 
 const props = defineProps<{
@@ -84,7 +84,7 @@ const props = defineProps<{
 }>()
 
 const loading = ref(false)
-const records = ref<Record[]>([])
+const records = ref<TacetRecord[]>([])
 const filters = reactive({
   player_id: '',
   sola_level: undefined as number | undefined
@@ -103,7 +103,7 @@ const loadRecords = async () => {
     if (filters.player_id) params.player_id = filters.player_id
     if (filters.sola_level) params.sola_level = filters.sola_level
 
-    const response = await recordApi.getRecords(params)
+    const response = await tacetApi.getRecords(params)
     records.value = response.data.data || []
     total.value = response.data.total || 0
   } catch (error) {
@@ -143,7 +143,7 @@ const formatDateTime = (dateStr: string) => {
 
 const handleDelete = async (id: number) => {
   try {
-    await recordApi.deleteRecord(id)
+    await tacetApi.deleteRecord(id)
     ElMessage.success('删除成功')
     loadRecords()
   } catch (error) {

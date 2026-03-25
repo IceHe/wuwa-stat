@@ -107,7 +107,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
-import { recordApi } from '../api'
+import { tacetApi } from '../api'
 
 const emit = defineEmits(['success'])
 
@@ -335,7 +335,7 @@ const handleSubmit = async () => {
       sola_level: form.sola_level
     }]
 
-    await recordApi.createRecords(records)
+    await tacetApi.createRecords(records)
     // 保存玩家ID到localStorage
     savePlayerId(form.player_id)
     ElMessage.success('录入成功')
@@ -363,7 +363,7 @@ const queryPlayerIds = (queryString: string, cb: (results: { value: string }[]) 
 
 const loadPlayerIds = async () => {
   try {
-    const response = await recordApi.getPlayerIds()
+    const response = await tacetApi.getPlayerIds()
     playerIds.value = response.data
   } catch (error) {
     console.error('加载玩家ID列表失败:', error)
@@ -380,7 +380,7 @@ const loadLastPlayerId = async () => {
 
   // 备用：从服务器获取最近录入的玩家ID
   try {
-    const response = await recordApi.getRecords({ limit: 1 })
+    const response = await tacetApi.getRecords({ limit: 1 })
     if (response.data.data.length > 0) {
       form.player_id = response.data.data[0].player_id
     }

@@ -100,10 +100,16 @@ const solaLevels = [8, 7, 6, 5, 4, 3, 2, 1]
 const dropCountOptionsByLevel: Record<number, number[]> = {
   8: [4, 5],
   7: [4, 5],
-  6: [2, 3]
+  6: [2, 3],
+  5: [2, 3],
+  4: [1, 2],
+  3: [1, 2],
+  2: [1, 2],
+  1: [1, 2]
 }
 
 const getDropCountOptions = (solaLevel: number) => dropCountOptionsByLevel[solaLevel] ?? []
+const getDefaultDropCount = (solaLevel: number) => getDropCountOptions(solaLevel)[0] ?? 0
 
 const loading = ref(false)
 const isDateManuallyEdited = ref(false)
@@ -164,10 +170,7 @@ const dropCountOptions = computed(() => getDropCountOptions(form.sola_level))
 watch(
   () => form.sola_level,
   (level) => {
-    const options = getDropCountOptions(level)
-    if (options.length > 0 && !options.includes(form.drop_count)) {
-      form.drop_count = options[0]
-    }
+    form.drop_count = getDefaultDropCount(level)
   },
   { immediate: true }
 )
@@ -245,7 +248,7 @@ const handleReset = () => {
   form.date = getDefaultGameDate()
   isDateManuallyEdited.value = false
   form.sola_level = 8
-  form.drop_count = getDropCountOptions(form.sola_level)[0] ?? 0
+  form.drop_count = getDefaultDropCount(form.sola_level)
   form.count = 1
 }
 

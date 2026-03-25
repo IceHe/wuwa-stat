@@ -1,19 +1,28 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with code in this repository.
 
 ## Project Overview
 
-This is a stats tracking tool for the game Wuthering Waves (鸣潮), specifically tracking "Tacet Zone" (无音区) drop data - gold and purple "tubes" (密音筒) that players receive.
+This repository is a web-based stats tracking tool for the game Wuthering Waves (鸣潮).
+
+Current scope:
+- Tacet Zone (无音区) drops
+- Resonator ascension material drops
+- Resonance domain (凝素领域) drops
+
+Use "鸣潮统计网页工具" as the short product name in user-facing docs.
 
 ## Technology Stack
 
 - **Backend**: FastAPI + SQLAlchemy + PostgreSQL
 - **Frontend**: Vue 3 + TypeScript + Element Plus + Vite
+- **Auth**: external token validation service
 
 ## Common Commands
 
 ### Backend
+
 ```bash
 cd backend
 
@@ -26,15 +35,22 @@ python init_db.py
 # Import sample data
 python import_sample_data.py
 
+# Import tacet data from backend/data/
+python import_tacet_data.py
+
 # Start development server
 uvicorn app.main:app --reload --port 8000
 ```
 
 ### Frontend
+
 ```bash
 cd frontend
 
-# Install dependencies (may need mirror for China)
+# Install dependencies
+npm install
+
+# Optional mirror for China
 npm install --registry=https://registry.npmmirror.com
 
 # Start development server
@@ -47,82 +63,97 @@ npm run build
 ## Architecture
 
 ### Backend Structure
-```
+
+```text
 backend/
 ├── app/
-│   ├── main.py         # FastAPI app entry point, CORS config
-│   ├── models.py       # SQLAlchemy Record model (table: tacet_records)
+│   ├── main.py         # FastAPI app entry point, OpenAPI metadata, CORS
+│   ├── models.py       # SQLAlchemy models for tacet/ascension/resonance
 │   ├── schemas.py      # Pydantic request/response schemas
-│   ├── database.py     # Database connection, SessionLocal
+│   ├── database.py     # Database config, SessionLocal, settings
+│   ├── auth.py         # External auth service integration
 │   └── api/
-│       └── routes.py   # API endpoints
+│       └── routes.py   # API endpoints for all three modules
+├── data/               # Import data files
 ├── init_db.py          # Database initialization script
-└── .env                # Database URL configuration
+├── import_*.py         # Data import scripts
+└── .env                # Runtime configuration
 ```
 
 ### Frontend Structure
-```
+
+```text
 frontend/
 ├── src/
 │   ├── main.ts         # Vue app entry point
-│   ├── App.vue         # Main app with tab navigation
-│   ├── api/index.ts    # Axios API client
+│   ├── App.vue         # Main app with auth + tab navigation
+│   ├── api/index.ts    # Axios API client and auth token handling
 │   └── components/
-│       ├── RecordInput.vue   # Form for adding records
-│       ├── RecordList.vue   # Table view with filters
-│       └── StatsView.vue    # Statistics dashboard
+│       ├── Tacet*.vue       # Tacet records UI
+│       ├── Ascension*.vue   # Ascension records UI
+│       └── Resonance*.vue   # Resonance records UI
 └── vite.config.ts      # Vite config with API proxy
 ```
 
-### Database Schema
-Table: `tacet_records`
-- Existing deployments should rename table manually:
-  - `ALTER TABLE tacet_stats RENAME TO tacet_records;`
-- Optional index rename for naming consistency:
-  - `ALTER INDEX IF EXISTS idx_tacet_stats_date RENAME TO idx_tacet_records_date;`
-  - `ALTER INDEX IF EXISTS idx_tacet_stats_player_id RENAME TO idx_tacet_records_player_id;`
-- `id` (PK)
-- `date` (indexed)
-- `player_id` (indexed)
-- `gold_tubes` - gold tube count
-- `purple_tubes` - purple tube count
-- `sola_level` - Sola level (1-8, default 8)
-- `created_at` - timestamp
+## Database Schema
 
-### API Endpoints
-- `POST /api/tacet_records` - Batch create records
-- `GET /api/tacet_records` - Query records with filters (player_id, date range, sola_level) and pagination
-- `GET /api/stats` - Basic statistics (totals, averages)
-- `GET /api/detailed-stats` - Stats grouped by sola level and drop combinations
-- `GET /api/player-ids` - List unique player IDs
-- `DELETE /api/tacet_records/{id}` - Delete a record
+Tables:
+- `tacet_records`
+- `ascension_records`
+- `resonance_records`
 
-### API Proxy
-Frontend uses Vite proxy to forward `/api` requests to `http://localhost:8000`.
+Legacy migration note for Tacet records:
+- `ALTER TABLE tacet_stats RENAME TO tacet_records;`
+- `ALTER INDEX IF EXISTS idx_tacet_stats_date RENAME TO idx_tacet_records_date;`
+- `ALTER INDEX IF EXISTS idx_tacet_stats_player_id RENAME TO idx_tacet_records_player_id;`
+- `ALTER TABLE tacet_records ADD COLUMN IF NOT EXISTS claim_count INTEGER NOT NULL DEFAULT 1;`
+
+## API Endpoints
+
+- Tacet:
+  - `POST /api/tacet_records`
+  - `GET /api/tacet_records`
+  - `GET /api/stats`
+  - `GET /api/detailed-stats`
+  - `GET /api/player-ids`
+  - `DELETE /api/tacet_records/{id}`
+- Ascension:
+  - `POST /api/ascension-records`
+  - `GET /api/ascension-records`
+  - `GET /api/ascension-detailed-stats`
+  - `GET /api/ascension-player-ids`
+  - `DELETE /api/ascension-records/{id}`
+- Resonance:
+  - `POST /api/resonance-records`
+  - `GET /api/resonance-records`
+  - `GET /api/resonance-detailed-stats`
+  - `GET /api/resonance-player-ids`
+  - `DELETE /api/resonance-records/{id}`
+- Auth:
+  - `GET /api/auth/me`
 
 ## Key Configuration
 
 - Backend listens on port 8000
-- Frontend dev server on port 5173
+- Frontend dev server listens on port 5173
 - Database connection configured in `backend/.env` via `DATABASE_URL`
-- CORS configured to allow frontend URL (default `http://localhost:5173`)
+- CORS frontend URL configured via `FRONTEND_URL`
+- Auth is delegated to an external service, default `http://127.0.0.1:8080`
+- Most API routes require a token with `view`, `edit`, or `manage` permissions
 
 ## Production Deployment (systemd)
 
 Services are configured as systemd units for permanent background running:
 
 ```bash
-# Start/Stop services
 systemctl start wuwa-stat-backend
 systemctl start wuwa-stat-frontend
 systemctl stop wuwa-stat-backend
 systemctl stop wuwa-stat-frontend
 
-# View logs
 journalctl -u wuwa-stat-backend -f
 journalctl -u wuwa-stat-frontend -f
 
-# Restart services
 systemctl restart wuwa-stat-backend
 systemctl restart wuwa-stat-frontend
 ```
@@ -130,5 +161,3 @@ systemctl restart wuwa-stat-frontend
 Service files:
 - `/etc/systemd/system/wuwa-stat-backend.service`
 - `/etc/systemd/system/wuwa-stat-frontend.service`
-
-Services are enabled to start on boot automatically.

@@ -34,8 +34,8 @@ Base.metadata.create_all(bind=engine)
 ensure_tacet_record_schema()
 
 app = FastAPI(
-    title="鸣潮无音区产出统计",
-    description="统计鸣潮游戏无音区的金色和紫色密音筒产出",
+    title="鸣潮统计网页工具",
+    description="用于统计鸣潮的无音区、共鸣者突破材料和凝素领域产出数据",
     version="1.0.0"
 )
 
@@ -54,7 +54,7 @@ app.include_router(router)
 
 @app.get("/")
 def root():
-    return {"message": "鸣潮无音区产出统计 API"}
+    return {"message": "鸣潮统计网页工具 API"}
 
 
 @app.get("/health")
