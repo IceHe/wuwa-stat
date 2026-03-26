@@ -8,7 +8,7 @@
 ## 启动后端
 
 ```bash
-cd /root/wuwa/wuwa_stat/backend
+cd /root/wuwa/stat/backend
 
 cp .env.example .env
 # 按实际情况编辑 .env 中的 DATABASE_URL 和 FRONTEND_URL
@@ -26,7 +26,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ## 启动前端
 
 ```bash
-cd /root/wuwa/wuwa_stat/frontend
+cd /root/wuwa/stat/frontend
 npm install
 npm run dev
 ```
@@ -36,7 +36,7 @@ npm run dev
 如果 npm 网络较慢，可改用镜像：
 
 ```bash
-cd /root/wuwa/wuwa_stat/frontend
+cd /root/wuwa/stat/frontend
 npm install --registry=https://registry.npmmirror.com
 npm run dev
 ```

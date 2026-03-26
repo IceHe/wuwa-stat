@@ -164,4 +164,4 @@ npm run build
 
 ## 许可证
 
-MIT，见 [LICENSE](/root/wuwa/wuwa_stat/LICENSE)。
+MIT，见 [LICENSE](/root/wuwa/stat/LICENSE)。
