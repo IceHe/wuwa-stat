@@ -162,6 +162,13 @@ npm run build
 
 将 `dist/` 目录部署到静态文件服务器即可。
 
+### 域名部署示例
+
+- 前端域名：`https://stat.icehe.life`
+- 推荐在前端域名下额外转发 `/api` 到后端，这样前端可继续使用相对路径请求接口
+- 后端 `.env` 中的 `FRONTEND_URL` 需要设置为 `https://stat.icehe.life`
+- 生产环境推荐使用 `npm run build` 生成 `dist/`，再由 nginx 直接托管静态文件，而不是长期运行 Vite 开发服务
+
 ## 许可证
 
 MIT，见 [LICENSE](/root/wuwa/stat/LICENSE)。
