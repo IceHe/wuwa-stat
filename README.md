@@ -34,7 +34,7 @@
 ```
 
 说明：项目只有顶层 `frontend/` 这一个前端工程。
-原 Python 实现仍保留在 `backend/app/` 作为迁移对照，不再作为默认运行后端。
+原 Python 实现仍保留在 `backend/app/` 作为迁移对照，不再作为默认运行后端，也不应再作为生产 systemd 服务入口。
 
 ## 快速开始
 
@@ -138,13 +138,29 @@ npm run dev
 - API 请求通过 Vite 代理到 `http://localhost:8000`
 - TypeScript 提供类型安全
 
+## 联调自检
+
+启动后端、前端和鉴权服务后，建议至少执行以下检查：
+
+```bash
+curl --noproxy '*' http://localhost:8000/health
+curl --noproxy '*' -H "Authorization: Bearer ${TOKEN}" http://localhost:8000/api/auth/me
+curl --noproxy '*' -H "Authorization: Bearer ${TOKEN}" "http://localhost:8000/api/tacet_records?limit=1"
+curl --noproxy '*' -H "Authorization: Bearer ${TOKEN}" "http://localhost:8000/api/ascension-records?limit=1"
+curl --noproxy '*' -H "Authorization: Bearer ${TOKEN}" "http://localhost:8000/api/resonance-records?limit=1"
+```
+
+预期结果：
+- `health` 返回 `{"status":"ok"}`
+- 业务接口返回 `200`，且未出现 `Token 无效或已过期` / `鉴权服务不可用`
+
 ## 部署
 
 ### 后端部署
 
 ```bash
-cd backend
-go run ./cmd/server
+cd /root/wuwa/stat/backend
+go build -o server ./cmd/server
 ```
 
 ### 前端部署
@@ -163,6 +179,8 @@ npm run build
 - 推荐在前端域名下额外转发 `/api` 到后端，这样前端可继续使用相对路径请求接口
 - 后端 `.env` 中的 `FRONTEND_URL` 需要设置为 `https://stat.icehe.life`
 - 生产环境推荐使用 `npm run build` 生成 `dist/`，再由 nginx 直接托管静态文件，而不是长期运行 Vite 开发服务
+- systemd 后端服务建议直接执行 Go 二进制：`/root/wuwa/stat/backend/server`
+- 可直接复用仓库内模板：[deploy/systemd/wuwa-stat-backend.service](/root/wuwa/stat/deploy/systemd/wuwa-stat-backend.service)
 
 ## 许可证
 

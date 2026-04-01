@@ -60,6 +60,7 @@ func (v *authValidator) requirePermission(r *http.Request, required string) ([]s
 }
 
 func extractToken(r *http.Request) string {
+	// Prefer standard Bearer token, with X-Token kept for compatibility with existing clients.
 	authorization := strings.TrimSpace(r.Header.Get("Authorization"))
 	if authorization != "" {
 		parts := strings.SplitN(authorization, " ", 2)
@@ -79,6 +80,7 @@ func extractToken(r *http.Request) string {
 func (v *authValidator) validateToken(ctx context.Context, token string, required string) ([]string, *authError) {
 	payload := map[string]string{"token": token}
 	if required != "" {
+		// Passing the required permission allows the auth service to short-circuit forbidden checks.
 		payload["permission"] = required
 	}
 

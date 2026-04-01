@@ -54,6 +54,7 @@ func (a *API) Routes() http.Handler {
 func (a *API) withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
+		// Only allow the configured frontend origin to reduce accidental cross-origin exposure.
 		if origin != "" && origin == a.cfg.FrontendURL {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
@@ -1033,6 +1034,7 @@ type filterBuilder struct {
 }
 
 func buildCommonFilters(playerID, startDate, endDate string, solaLevel *int) (filterBuilder, error) {
+	// Build parameterized SQL conditions shared by list and stats APIs.
 	builder := filterBuilder{}
 
 	if playerID != "" {
@@ -1215,6 +1217,8 @@ func splitTacetCombination(solaLevel, goldTubes, purpleTubes, claimCount int) []
 		return [][2]int{{goldTubes, purpleTubes}}
 	}
 
+	// For double-claim rows, split the merged total into two plausible single-claim combinations.
+	// This keeps historical statistics comparable with old data where single claims were recorded directly.
 	combos := tacetSingleCombos[solaLevel]
 	var matching [][2][2]int
 	for _, left := range combos {
@@ -1230,6 +1234,7 @@ func splitTacetCombination(solaLevel, goldTubes, purpleTubes, claimCount int) []
 	}
 
 	if len(matching) == 0 {
+		// If no known split exists for this level, fall back to aggregated values to avoid dropping data.
 		return [][2]int{{goldTubes, purpleTubes}}
 	}
 

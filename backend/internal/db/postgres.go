@@ -31,6 +31,7 @@ func Open(databaseURL string) (*sql.DB, error) {
 }
 
 func EnsureSchema(ctx context.Context, database *sql.DB) error {
+	// Keep schema initialization idempotent so server and initdb can both call it safely.
 	statements := []string{
 		`CREATE TABLE IF NOT EXISTS tacet_records (
 			id BIGSERIAL PRIMARY KEY,
@@ -83,6 +84,8 @@ func EnsureSchema(ctx context.Context, database *sql.DB) error {
 }
 
 func ensureTacetRecordSchema(ctx context.Context, database *sql.DB) error {
+	// Compatibility migration: older Python schema may miss claim_count and still contain reward_mode.
+	// We backfill claim_count from reward_mode when possible.
 	var tacetExists bool
 	if err := database.QueryRowContext(ctx, `
 		SELECT EXISTS (

@@ -6,6 +6,7 @@
 - 凝素领域产出统计
 
 后端当前默认实现为 Go，建议使用 `Go 1.22+`。
+旧的 Python FastAPI 版本仅保留作迁移参考，不建议再作为生产服务入口。
 
 ## 启动后端
 
@@ -104,10 +105,38 @@ curl --noproxy localhost -X POST "http://localhost:8000/api/tacet_records" \
   }'
 ```
 
+## 联调快速验收
+
+下面命令可用于快速确认“后端 + 鉴权 + 数据库”链路是否正常：
+
+```bash
+curl --noproxy '*' http://localhost:8000/health
+curl --noproxy '*' -H "Authorization: Bearer ${TOKEN}" http://localhost:8000/api/auth/me
+curl --noproxy '*' -H "Authorization: Bearer ${TOKEN}" "http://localhost:8000/api/tacet_records?limit=1"
+curl --noproxy '*' -H "Authorization: Bearer ${TOKEN}" "http://localhost:8000/api/ascension-records?limit=1"
+curl --noproxy '*' -H "Authorization: Bearer ${TOKEN}" "http://localhost:8000/api/resonance-records?limit=1"
+```
+
+若出现 `鉴权服务不可用`，请优先检查：
+- `AUTH_SERVICE_URL` 是否可达
+- 鉴权服务是否已启动并可正常返回 `/api/validate`
+
 ## 停止服务
 
 - 停止后端：结束运行 `go run ./cmd/server` 的终端或进程
 - 停止前端：结束运行 `npm run dev` 的终端
+
+## systemd 部署说明
+
+如果你通过 systemd 常驻运行后端，建议使用仓库内模板：
+
+- [deploy/systemd/wuwa-stat-backend.service](/root/wuwa/stat/deploy/systemd/wuwa-stat-backend.service)
+
+对应的 `ExecStart` 应指向 Go 二进制：
+
+```ini
+ExecStart=/root/wuwa/stat/backend/server
+```
 
 ## 数据库备注
 
