@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field
 from datetime import date, datetime
-from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RecordBase(BaseModel):
@@ -21,11 +21,10 @@ class RecordBatchCreate(BaseModel):
 
 
 class RecordResponse(RecordBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class RecordsListResponse(BaseModel):
@@ -47,6 +46,7 @@ class StatsResponse(BaseModel):
 
 class DropCombination(BaseModel):
     """密音筒产出组合"""
+
     gold_tubes: int
     purple_tubes: int
     claim_count: int
@@ -57,6 +57,7 @@ class DropCombination(BaseModel):
 
 class SolaLevelStats(BaseModel):
     """索拉等级统计"""
+
     sola_level: int
     combinations: list[DropCombination]
     total_count: int
@@ -65,6 +66,7 @@ class SolaLevelStats(BaseModel):
 
 class DetailedStatsResponse(BaseModel):
     """详细统计响应"""
+
     level_stats: list[SolaLevelStats]
 
 
@@ -84,11 +86,10 @@ class AscensionRecordBatchCreate(BaseModel):
 
 
 class AscensionRecordResponse(AscensionRecordBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class AscensionDropCombination(BaseModel):
@@ -127,11 +128,10 @@ class ResonanceRecordBatchCreate(BaseModel):
 
 
 class ResonanceRecordResponse(ResonanceRecordBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class ResonanceDropCombination(BaseModel):

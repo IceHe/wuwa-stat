@@ -1,47 +1,59 @@
-"""
-初始化数据库表
-"""
-from app.database import engine, Base
+from app.database import Base, engine
 from app.models import AscensionRecord, Record, ResonanceRecord
 
-def init_db():
+TABLE_FIELDS = {
+    "tacet_records": (
+        "id: 主键",
+        "date: 日期",
+        "player_id: 玩家ID",
+        "gold_tubes: 金色密音筒数量",
+        "purple_tubes: 紫色密音筒数量",
+        "claim_count: 领取次数（1/2）",
+        "sola_level: 索拉等级",
+        "created_at: 创建时间",
+    ),
+    "ascension_records": (
+        "id: 主键",
+        "date: 日期",
+        "player_id: 玩家ID",
+        "sola_level: 索拉等级",
+        "drop_count: 突破材料掉落数量",
+        "created_at: 创建时间",
+    ),
+    "resonance_records": (
+        "id: 主键",
+        "date: 日期",
+        "player_id: 玩家ID",
+        "sola_level: 索拉等级",
+        "gold: 金色掉落数量",
+        "purple: 紫色掉落数量",
+        "blue: 蓝色掉落数量",
+        "green: 绿色掉落数量",
+        "created_at: 创建时间",
+    ),
+}
+
+
+def print_table_fields() -> None:
+    print("\n表结构：")
+    for table_name, fields in TABLE_FIELDS.items():
+        print(f"- 表名: {table_name}")
+        print("- 字段:")
+        for field in fields:
+            print(f"  - {field}")
+        print()
+
+
+def init_db() -> None:
+    """初始化数据库表并输出表结构。"""
+    # Import models so SQLAlchemy registers all tables before create_all.
+    _ = (AscensionRecord, Record, ResonanceRecord)
+
     print("正在创建数据库表...")
     Base.metadata.create_all(bind=engine)
     print("数据库表创建成功！")
+    print_table_fields()
 
-    # 显示表结构
-    print("\n表结构：")
-    print("- 表名: tacet_records")
-    print("- 字段:")
-    print("  - id: 主键")
-    print("  - date: 日期")
-    print("  - player_id: 玩家ID")
-    print("  - gold_tubes: 金色密音筒数量")
-    print("  - purple_tubes: 紫色密音筒数量")
-    print("  - claim_count: 领取次数（1/2）")
-    print("  - sola_level: 索拉等级")
-    print("  - created_at: 创建时间")
-
-    print("\n- 表名: ascension_records")
-    print("- 字段:")
-    print("  - id: 主键")
-    print("  - date: 日期")
-    print("  - player_id: 玩家ID")
-    print("  - sola_level: 索拉等级")
-    print("  - drop_count: 突破材料掉落数量")
-    print("  - created_at: 创建时间")
-
-    print("\n- 表名: resonance_records")
-    print("- 字段:")
-    print("  - id: 主键")
-    print("  - date: 日期")
-    print("  - player_id: 玩家ID")
-    print("  - sola_level: 索拉等级")
-    print("  - gold: 金色掉落数量")
-    print("  - purple: 紫色掉落数量")
-    print("  - blue: 蓝色掉落数量")
-    print("  - green: 绿色掉落数量")
-    print("  - created_at: 创建时间")
 
 if __name__ == "__main__":
     init_db()

@@ -1,5 +1,3 @@
-from typing import Optional
-
 import hashlib
 import logging
 from time import monotonic
@@ -16,7 +14,7 @@ AUTH_UNAVAILABLE_DETAIL = "鉴权服务不可用"
 logger = logging.getLogger(__name__)
 
 
-def _extract_token(request: Request) -> Optional[str]:
+def _extract_token(request: Request) -> str | None:
     authorization = request.headers.get("Authorization")
     if authorization:
         scheme, _, token = authorization.partition(" ")
@@ -38,7 +36,10 @@ def _token_fingerprint(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()[:12]
 
 
-async def _validate_token(token: str, required_permission: Optional[str] = None) -> list[str]:
+async def _validate_token(
+    token: str,
+    required_permission: str | None = None,
+) -> list[str]:
     payload: dict[str, str] = {"token": token}
     if required_permission:
         payload["permission"] = required_permission

@@ -3,10 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect, text
 
 from app.api.routes import router
-from app.database import engine, Base, settings
+from app.database import Base, engine, settings
 
 
-def ensure_tacet_record_schema():
+def ensure_tacet_record_schema() -> None:
     inspector = inspect(engine)
     if "tacet_records" not in inspector.get_table_names():
         return
@@ -29,17 +29,20 @@ def ensure_tacet_record_schema():
                     )
                 )
 
-# 创建数据库表
-Base.metadata.create_all(bind=engine)
-ensure_tacet_record_schema()
+
+def initialize_database() -> None:
+    Base.metadata.create_all(bind=engine)
+    ensure_tacet_record_schema()
+
+
+initialize_database()
 
 app = FastAPI(
     title="鸣潮产出统计",
     description="用于统计鸣潮的无音区、共鸣者突破材料和凝素领域产出数据",
-    version="1.0.0"
+    version="1.0.0",
 )
 
-# 配置CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontend_url],
@@ -48,7 +51,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 注册路由
 app.include_router(router)
 
 

@@ -1,5 +1,6 @@
+from collections import defaultdict
 from datetime import date
-from typing import Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
@@ -30,6 +31,8 @@ from app.schemas import (
 
 router = APIRouter(prefix="/api")
 
+DELETE_SUCCESS_MESSAGE = "删除成功"
+RECORD_NOT_FOUND_DETAIL = "记录不存在"
 
 TACET_SINGLE_COMBOS = {
     8: [(4, 4), (3, 4)],
@@ -39,7 +42,12 @@ TACET_SINGLE_COMBOS = {
 }
 
 
-def split_tacet_combination(sola_level: int, gold_tubes: int, purple_tubes: int, claim_count: int) -> list[tuple[int, int]]:
+def split_tacet_combination(
+    sola_level: int,
+    gold_tubes: int,
+    purple_tubes: int,
+    claim_count: int,
+) -> list[tuple[int, int]]:
     if claim_count <= 1:
         return [(gold_tubes, purple_tubes)]
 
@@ -48,7 +56,10 @@ def split_tacet_combination(sola_level: int, gold_tubes: int, purple_tubes: int,
 
     for left_combo in combos:
         for right_combo in combos:
-            if left_combo[0] + right_combo[0] == gold_tubes and left_combo[1] + right_combo[1] == purple_tubes:
+            if (
+                left_combo[0] + right_combo[0] == gold_tubes
+                and left_combo[1] + right_combo[1] == purple_tubes
+            ):
                 ordered_pair = sorted([left_combo, right_combo], reverse=True)
                 matching_pairs.append(ordered_pair)
 
@@ -59,53 +70,50 @@ def split_tacet_combination(sola_level: int, gold_tubes: int, purple_tubes: int,
     return matching_pairs[0]
 
 
-@router.post("/tacet_records", response_model=list[RecordResponse], tags=["tacet"])
-def create_records(
-    batch: RecordBatchCreate,
-    db: Session = Depends(get_db),
-    _: list[str] = Depends(require_edit_permission),
-):
-    """批量创建记录"""
-    db_records = []
-    for record_data in batch.tacet_records:
-        db_record = Record(**record_data.model_dump())
-        db_records.append(db_record)
+def _apply_record_filters(
+    query: Any,
+    model: Any,
+    *,
+    player_id: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    sola_level: int | None = None,
+) -> Any:
+    if player_id:
+        query = query.filter(model.player_id == player_id)
+    if start_date:
+        query = query.filter(model.date >= start_date)
+    if end_date:
+        query = query.filter(model.date <= end_date)
+    if sola_level is not None:
+        query = query.filter(model.sola_level == sola_level)
+    return query
 
+
+def _create_batch_records(db: Session, model: Any, records: list[Any]) -> list[Any]:
+    db_records = [model(**record.model_dump()) for record in records]
     db.add_all(db_records)
     db.commit()
 
-    for record in db_records:
-        db.refresh(record)
+    for db_record in db_records:
+        db.refresh(db_record)
 
     return db_records
 
 
-@router.get("/tacet_records", response_model=RecordsListResponse, tags=["tacet"])
-def get_records(
-    player_id: Optional[str] = None,
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
-    sola_level: Optional[int] = None,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=1000),
-    db: Session = Depends(get_db),
-    _: list[str] = Depends(require_view_permission),
-):
-    """查询记录，支持筛选和分页"""
-    query = db.query(Record)
-
-    if player_id:
-        query = query.filter(Record.player_id == player_id)
-    if start_date:
-        query = query.filter(Record.date >= start_date)
-    if end_date:
-        query = query.filter(Record.date <= end_date)
-    if sola_level:
-        query = query.filter(Record.sola_level == sola_level)
-
+def _build_paginated_response(
+    query: Any,
+    model: Any,
+    skip: int,
+    limit: int,
+) -> dict[str, Any]:
     total = query.count()
-    records = query.order_by(Record.created_at.desc(), Record.id.desc()).offset(skip).limit(limit).all()
-
+    records = (
+        query.order_by(model.created_at.desc(), model.id.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
     return {
         "data": records,
         "total": total,
@@ -114,26 +122,71 @@ def get_records(
     }
 
 
+def _get_distinct_player_ids(db: Session, model: Any) -> list[str]:
+    return [player_id for player_id, in db.query(model.player_id).distinct().all()]
+
+
+def _delete_record(db: Session, model: Any, record_id: int) -> dict[str, str]:
+    record = db.query(model).filter(model.id == record_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail=RECORD_NOT_FOUND_DETAIL)
+
+    db.delete(record)
+    db.commit()
+    return {"message": DELETE_SUCCESS_MESSAGE}
+
+
+@router.post("/tacet_records", response_model=list[RecordResponse], tags=["tacet"])
+def create_records(
+    batch: RecordBatchCreate,
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_edit_permission),
+):
+    """批量创建记录"""
+    return _create_batch_records(db, Record, batch.tacet_records)
+
+
+@router.get("/tacet_records", response_model=RecordsListResponse, tags=["tacet"])
+def get_records(
+    player_id: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    sola_level: int | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    _: list[str] = Depends(require_view_permission),
+):
+    """查询记录，支持筛选和分页"""
+    query = _apply_record_filters(
+        db.query(Record),
+        Record,
+        player_id=player_id,
+        start_date=start_date,
+        end_date=end_date,
+        sola_level=sola_level,
+    )
+    return _build_paginated_response(query, Record, skip, limit)
+
+
 @router.get("/stats", response_model=StatsResponse, tags=["tacet"])
 def get_stats(
-    player_id: Optional[str] = None,
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
+    player_id: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
     db: Session = Depends(get_db),
     _: list[str] = Depends(require_view_permission),
 ):
     """获取统计数据"""
-    query = db.query(Record)
-
-    if player_id:
-        query = query.filter(Record.player_id == player_id)
-    if start_date:
-        query = query.filter(Record.date >= start_date)
-    if end_date:
-        query = query.filter(Record.date <= end_date)
+    query = _apply_record_filters(
+        db.query(Record),
+        Record,
+        player_id=player_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
     total_records = query.count()
-
     if total_records == 0:
         return StatsResponse(
             total_records=0,
@@ -153,8 +206,16 @@ def get_stats(
     ).first()
 
     total_claim_count = int(stats.total_claim_count or 0)
-    avg_gold = float(stats.total_gold or 0) / total_claim_count if total_claim_count > 0 else 0.0
-    avg_purple = float(stats.total_purple or 0) / total_claim_count if total_claim_count > 0 else 0.0
+    avg_gold = (
+        float(stats.total_gold or 0) / total_claim_count
+        if total_claim_count > 0
+        else 0.0
+    )
+    avg_purple = (
+        float(stats.total_purple or 0) / total_claim_count
+        if total_claim_count > 0
+        else 0.0
+    )
 
     return StatsResponse(
         total_records=total_records,
@@ -169,21 +230,20 @@ def get_stats(
 
 @router.get("/detailed-stats", response_model=DetailedStatsResponse, tags=["tacet"])
 def get_detailed_stats(
-    player_id: Optional[str] = None,
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
+    player_id: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
     db: Session = Depends(get_db),
     _: list[str] = Depends(require_view_permission),
 ):
     """获取详细统计数据，按索拉等级和密音筒组合分组"""
-    query = db.query(Record)
-
-    if player_id:
-        query = query.filter(Record.player_id == player_id)
-    if start_date:
-        query = query.filter(Record.date >= start_date)
-    if end_date:
-        query = query.filter(Record.date <= end_date)
+    query = _apply_record_filters(
+        db.query(Record),
+        Record,
+        player_id=player_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
     grouped_stats = query.with_entities(
         Record.sola_level,
@@ -193,12 +253,8 @@ def get_detailed_stats(
         func.count().label("count"),
     ).group_by(Record.sola_level, Record.claim_count, Record.gold_tubes, Record.purple_tubes).all()
 
-    level_data: dict[int, dict[tuple[int, int], int]] = {}
+    level_data: dict[int, dict[tuple[int, int], int]] = defaultdict(dict)
     for stat in grouped_stats:
-        level = stat.sola_level
-        if level not in level_data:
-            level_data[level] = {}
-
         split_combos = split_tacet_combination(
             stat.sola_level,
             stat.gold_tubes,
@@ -207,13 +263,18 @@ def get_detailed_stats(
         )
         for split_gold, split_purple in split_combos:
             combo_key = (split_gold, split_purple)
-            level_data[level][combo_key] = level_data[level].get(combo_key, 0) + stat.count
+            level_data[stat.sola_level][combo_key] = (
+                level_data[stat.sola_level].get(combo_key, 0) + stat.count
+            )
 
     level_stats = []
     for level in sorted(level_data.keys(), reverse=True):
         combinations_data = level_data[level]
         total_count = sum(combinations_data.values())
-        total_exp = sum((gold * 5000 + purple * 2000) * count for (gold, purple), count in combinations_data.items())
+        total_exp = sum(
+            (gold * 5000 + purple * 2000) * count
+            for (gold, purple), count in combinations_data.items()
+        )
         avg_exp = total_exp / total_count if total_count > 0 else 0
 
         combinations = []
@@ -253,8 +314,7 @@ def get_player_ids(
     _: list[str] = Depends(require_view_permission),
 ):
     """获取所有不重复的玩家ID列表"""
-    player_ids = db.query(Record.player_id).distinct().all()
-    return [pid[0] for pid in player_ids]
+    return _get_distinct_player_ids(db, Record)
 
 
 @router.delete("/tacet_records/{record_id}", tags=["tacet"])
@@ -264,84 +324,63 @@ def delete_record(
     _: list[str] = Depends(require_edit_permission),
 ):
     """删除指定记录"""
-    record = db.query(Record).filter(Record.id == record_id).first()
-    if not record:
-        raise HTTPException(status_code=404, detail="记录不存在")
-
-    db.delete(record)
-    db.commit()
-    return {"message": "删除成功"}
+    return _delete_record(db, Record, record_id)
 
 
-@router.post("/ascension-records", response_model=list[AscensionRecordResponse], tags=["ascension"])
+@router.post(
+    "/ascension-records",
+    response_model=list[AscensionRecordResponse],
+    tags=["ascension"],
+)
 def create_ascension_records(
     batch: AscensionRecordBatchCreate,
     db: Session = Depends(get_db),
     _: list[str] = Depends(require_edit_permission),
 ):
-    db_records = []
-    for record_data in batch.ascension_records:
-        db_record = AscensionRecord(**record_data.model_dump())
-        db_records.append(db_record)
-
-    db.add_all(db_records)
-    db.commit()
-
-    for record in db_records:
-        db.refresh(record)
-
-    return db_records
+    return _create_batch_records(db, AscensionRecord, batch.ascension_records)
 
 
 @router.get("/ascension-records", tags=["ascension"])
 def get_ascension_records(
-    player_id: Optional[str] = None,
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
-    sola_level: Optional[int] = None,
+    player_id: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    sola_level: int | None = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=1000),
     db: Session = Depends(get_db),
     _: list[str] = Depends(require_view_permission),
 ):
-    query = db.query(AscensionRecord)
-
-    if player_id:
-        query = query.filter(AscensionRecord.player_id == player_id)
-    if start_date:
-        query = query.filter(AscensionRecord.date >= start_date)
-    if end_date:
-        query = query.filter(AscensionRecord.date <= end_date)
-    if sola_level:
-        query = query.filter(AscensionRecord.sola_level == sola_level)
-
-    total = query.count()
-    records = query.order_by(AscensionRecord.created_at.desc(), AscensionRecord.id.desc()).offset(skip).limit(limit).all()
-
-    return {
-        "data": records,
-        "total": total,
-        "page_size": limit,
-        "current_page": skip // limit + 1,
-    }
+    query = _apply_record_filters(
+        db.query(AscensionRecord),
+        AscensionRecord,
+        player_id=player_id,
+        start_date=start_date,
+        end_date=end_date,
+        sola_level=sola_level,
+    )
+    return _build_paginated_response(query, AscensionRecord, skip, limit)
 
 
-@router.get("/ascension-detailed-stats", response_model=AscensionDetailedStatsResponse, tags=["ascension"])
+@router.get(
+    "/ascension-detailed-stats",
+    response_model=AscensionDetailedStatsResponse,
+    tags=["ascension"],
+)
 def get_ascension_detailed_stats(
-    player_id: Optional[str] = None,
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
+    player_id: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
     db: Session = Depends(get_db),
     _: list[str] = Depends(require_view_permission),
 ):
-    query = db.query(AscensionRecord)
-
-    if player_id:
-        query = query.filter(AscensionRecord.player_id == player_id)
-    if start_date:
-        query = query.filter(AscensionRecord.date >= start_date)
-    if end_date:
-        query = query.filter(AscensionRecord.date <= end_date)
+    query = _apply_record_filters(
+        db.query(AscensionRecord),
+        AscensionRecord,
+        player_id=player_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
     grouped_stats = query.with_entities(
         AscensionRecord.sola_level,
@@ -349,13 +388,9 @@ def get_ascension_detailed_stats(
         func.count().label("count"),
     ).group_by(AscensionRecord.sola_level, AscensionRecord.drop_count).all()
 
-    level_data = {}
+    level_data: dict[int, list[dict[str, int]]] = defaultdict(list)
     for stat in grouped_stats:
-        level = stat.sola_level
-        if level not in level_data:
-            level_data[level] = []
-
-        level_data[level].append(
+        level_data[stat.sola_level].append(
             {
                 "drop_count": stat.drop_count,
                 "count": stat.count,
@@ -365,12 +400,19 @@ def get_ascension_detailed_stats(
     level_stats = []
     for level in sorted(level_data.keys(), reverse=True):
         combinations_data = level_data[level]
-        total_count = sum(c["count"] for c in combinations_data)
-        total_drop_count = sum(c["drop_count"] * c["count"] for c in combinations_data)
+        total_count = sum(combo["count"] for combo in combinations_data)
+        total_drop_count = sum(
+            combo["drop_count"] * combo["count"]
+            for combo in combinations_data
+        )
         avg_drop_count = total_drop_count / total_count if total_count > 0 else 0
 
         combinations = []
-        for combo in sorted(combinations_data, key=lambda x: x["drop_count"], reverse=True):
+        for combo in sorted(
+            combinations_data,
+            key=lambda item: item["drop_count"],
+            reverse=True,
+        ):
             percentage = (combo["count"] / total_count * 100) if total_count > 0 else 0
             combinations.append(
                 AscensionDropCombination(
@@ -397,8 +439,7 @@ def get_ascension_player_ids(
     db: Session = Depends(get_db),
     _: list[str] = Depends(require_view_permission),
 ):
-    player_ids = db.query(AscensionRecord.player_id).distinct().all()
-    return [pid[0] for pid in player_ids]
+    return _get_distinct_player_ids(db, AscensionRecord)
 
 
 @router.delete("/ascension-records/{record_id}", tags=["ascension"])
@@ -407,84 +448,63 @@ def delete_ascension_record(
     db: Session = Depends(get_db),
     _: list[str] = Depends(require_edit_permission),
 ):
-    record = db.query(AscensionRecord).filter(AscensionRecord.id == record_id).first()
-    if not record:
-        raise HTTPException(status_code=404, detail="记录不存在")
-
-    db.delete(record)
-    db.commit()
-    return {"message": "删除成功"}
+    return _delete_record(db, AscensionRecord, record_id)
 
 
-@router.post("/resonance-records", response_model=list[ResonanceRecordResponse], tags=["resonance"])
+@router.post(
+    "/resonance-records",
+    response_model=list[ResonanceRecordResponse],
+    tags=["resonance"],
+)
 def create_resonance_records(
     batch: ResonanceRecordBatchCreate,
     db: Session = Depends(get_db),
     _: list[str] = Depends(require_edit_permission),
 ):
-    db_records = []
-    for record_data in batch.resonance_records:
-        db_record = ResonanceRecord(**record_data.model_dump())
-        db_records.append(db_record)
-
-    db.add_all(db_records)
-    db.commit()
-
-    for record in db_records:
-        db.refresh(record)
-
-    return db_records
+    return _create_batch_records(db, ResonanceRecord, batch.resonance_records)
 
 
 @router.get("/resonance-records", tags=["resonance"])
 def get_resonance_records(
-    player_id: Optional[str] = None,
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
-    sola_level: Optional[int] = None,
+    player_id: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    sola_level: int | None = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=1000),
     db: Session = Depends(get_db),
     _: list[str] = Depends(require_view_permission),
 ):
-    query = db.query(ResonanceRecord)
-
-    if player_id:
-        query = query.filter(ResonanceRecord.player_id == player_id)
-    if start_date:
-        query = query.filter(ResonanceRecord.date >= start_date)
-    if end_date:
-        query = query.filter(ResonanceRecord.date <= end_date)
-    if sola_level:
-        query = query.filter(ResonanceRecord.sola_level == sola_level)
-
-    total = query.count()
-    records = query.order_by(ResonanceRecord.created_at.desc(), ResonanceRecord.id.desc()).offset(skip).limit(limit).all()
-
-    return {
-        "data": records,
-        "total": total,
-        "page_size": limit,
-        "current_page": skip // limit + 1,
-    }
+    query = _apply_record_filters(
+        db.query(ResonanceRecord),
+        ResonanceRecord,
+        player_id=player_id,
+        start_date=start_date,
+        end_date=end_date,
+        sola_level=sola_level,
+    )
+    return _build_paginated_response(query, ResonanceRecord, skip, limit)
 
 
-@router.get("/resonance-detailed-stats", response_model=ResonanceDetailedStatsResponse, tags=["resonance"])
+@router.get(
+    "/resonance-detailed-stats",
+    response_model=ResonanceDetailedStatsResponse,
+    tags=["resonance"],
+)
 def get_resonance_detailed_stats(
-    player_id: Optional[str] = None,
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
+    player_id: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
     db: Session = Depends(get_db),
     _: list[str] = Depends(require_view_permission),
 ):
-    query = db.query(ResonanceRecord)
-
-    if player_id:
-        query = query.filter(ResonanceRecord.player_id == player_id)
-    if start_date:
-        query = query.filter(ResonanceRecord.date >= start_date)
-    if end_date:
-        query = query.filter(ResonanceRecord.date <= end_date)
+    query = _apply_record_filters(
+        db.query(ResonanceRecord),
+        ResonanceRecord,
+        player_id=player_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
     grouped_stats = query.with_entities(
         ResonanceRecord.sola_level,
@@ -501,13 +521,9 @@ def get_resonance_detailed_stats(
         ResonanceRecord.green,
     ).all()
 
-    level_data = {}
+    level_data: dict[int, list[dict[str, int]]] = defaultdict(list)
     for stat in grouped_stats:
-        level = stat.sola_level
-        if level not in level_data:
-            level_data[level] = []
-
-        level_data[level].append(
+        level_data[stat.sola_level].append(
             {
                 "gold": stat.gold,
                 "purple": stat.purple,
@@ -520,12 +536,18 @@ def get_resonance_detailed_stats(
     level_stats = []
     for level in sorted(level_data.keys(), reverse=True):
         combinations_data = level_data[level]
-        total_count = sum(c["count"] for c in combinations_data)
+        total_count = sum(combo["count"] for combo in combinations_data)
 
-        total_gold = sum(c["gold"] * c["count"] for c in combinations_data)
-        total_purple = sum(c["purple"] * c["count"] for c in combinations_data)
-        total_blue = sum(c["blue"] * c["count"] for c in combinations_data)
-        total_green = sum(c["green"] * c["count"] for c in combinations_data)
+        total_gold = sum(combo["gold"] * combo["count"] for combo in combinations_data)
+        total_purple = sum(
+            combo["purple"] * combo["count"]
+            for combo in combinations_data
+        )
+        total_blue = sum(combo["blue"] * combo["count"] for combo in combinations_data)
+        total_green = sum(
+            combo["green"] * combo["count"]
+            for combo in combinations_data
+        )
 
         avg_gold = total_gold / total_count if total_count > 0 else 0
         avg_purple = total_purple / total_count if total_count > 0 else 0
@@ -535,7 +557,12 @@ def get_resonance_detailed_stats(
         combinations = []
         for combo in sorted(
             combinations_data,
-            key=lambda x: (x["gold"], x["purple"], x["blue"], x["green"]),
+            key=lambda item: (
+                item["gold"],
+                item["purple"],
+                item["blue"],
+                item["green"],
+            ),
             reverse=True,
         ):
             percentage = (combo["count"] / total_count * 100) if total_count > 0 else 0
@@ -570,8 +597,7 @@ def get_resonance_player_ids(
     db: Session = Depends(get_db),
     _: list[str] = Depends(require_view_permission),
 ):
-    player_ids = db.query(ResonanceRecord.player_id).distinct().all()
-    return [pid[0] for pid in player_ids]
+    return _get_distinct_player_ids(db, ResonanceRecord)
 
 
 @router.delete("/resonance-records/{record_id}", tags=["resonance"])
@@ -580,13 +606,7 @@ def delete_resonance_record(
     db: Session = Depends(get_db),
     _: list[str] = Depends(require_edit_permission),
 ):
-    record = db.query(ResonanceRecord).filter(ResonanceRecord.id == record_id).first()
-    if not record:
-        raise HTTPException(status_code=404, detail="记录不存在")
-
-    db.delete(record)
-    db.commit()
-    return {"message": "删除成功"}
+    return _delete_record(db, ResonanceRecord, record_id)
 
 
 @router.get("/auth/me", tags=["auth"])
