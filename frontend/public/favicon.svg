@@ -1,21 +1,45 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="鸣潮统计图标">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="鸣潮产出统计图标">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0f2a36" />
-      <stop offset="100%" stop-color="#1a4b57" />
+    <linearGradient id="bg" x1="10%" y1="8%" x2="90%" y2="92%">
+      <stop offset="0%" stop-color="#1d66ff" />
+      <stop offset="55%" stop-color="#1350d8" />
+      <stop offset="100%" stop-color="#0a2f8f" />
     </linearGradient>
-    <linearGradient id="wave" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#f6d36b" />
-      <stop offset="100%" stop-color="#e18b2d" />
+    <linearGradient id="shine" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#bfe6ff" stop-opacity="0.9" />
+    </linearGradient>
+    <linearGradient id="accent" x1="20%" y1="20%" x2="80%" y2="80%">
+      <stop offset="0%" stop-color="#7ee7ff" />
+      <stop offset="100%" stop-color="#ffffff" />
     </linearGradient>
   </defs>
+
   <rect width="64" height="64" rx="16" fill="url(#bg)" />
+  <circle cx="48" cy="16" r="15" fill="#ffffff" opacity="0.12" />
+  <circle cx="18" cy="50" r="16" fill="#7ee7ff" opacity="0.08" />
+
   <path
-    d="M12 38c6-10 10-15 15-15 6 0 7 7 11 7 4 0 7-5 14-16l4 2c-7 13-12 20-19 20-6 0-7-7-11-7-3 0-6 4-10 11Z"
-    fill="url(#wave)"
+    d="M43 18C38 14 29 14 24 18C20 21 20 27 25 30C28 32 31 32 35 33C40 34 43 36 43 40C43 45 38 48 32 48C27 48 22 46 19 43"
+    fill="none"
+    stroke="url(#shine)"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="8"
+  />
+
+  <path
+    d="M40 21C36 19 30 19 27 22"
+    fill="none"
+    stroke="url(#accent)"
+    stroke-linecap="round"
+    stroke-width="3"
   />
   <path
-    d="M17 48h7l4-12 4 8 3-8 3 12h8l-6-23h-5l-4 10-4-10h-5Z"
-    fill="#f8f4e8"
+    d="M24 42C27 45 33 46 38 43"
+    fill="none"
+    stroke="url(#accent)"
+    stroke-linecap="round"
+    stroke-width="3"
   />
 </svg>

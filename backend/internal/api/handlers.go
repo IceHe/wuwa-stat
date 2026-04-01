@@ -98,7 +98,7 @@ func (a *API) handleRoot(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	writeJSON(w, http.StatusOK, messageResponse{Message: "鸣潮统计网页工具 API"})
+	writeJSON(w, http.StatusOK, messageResponse{Message: "鸣潮产出统计 API"})
 }
 
 func (a *API) handleHealth(w http.ResponseWriter, r *http.Request) {

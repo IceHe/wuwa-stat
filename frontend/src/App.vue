@@ -2,7 +2,7 @@
   <el-container class="container">
     <el-header>
       <div class="header-content">
-        <h1>鸣潮统计网页工具</h1>
+        <h1>鸣潮产出统计</h1>
         <el-button v-if="isLoggedIn" @click="handleLogout">退出登录</el-button>
       </div>
     </el-header>
