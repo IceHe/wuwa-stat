@@ -17,3 +17,6 @@ backend/venv/
 .history/
 *.db
 *.sqlite3
+.codex
+backend/initdb
+backend/server
