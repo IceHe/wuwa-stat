@@ -41,6 +41,7 @@ func EnsureSchema(ctx context.Context, database *sql.DB) error {
 			purple_tubes INTEGER NOT NULL DEFAULT 0,
 			claim_count INTEGER NOT NULL DEFAULT 1,
 			sola_level INTEGER NOT NULL DEFAULT 8,
+			created_by_user_id BIGINT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_tacet_records_date ON tacet_records(date)`,
@@ -51,6 +52,7 @@ func EnsureSchema(ctx context.Context, database *sql.DB) error {
 			player_id TEXT NOT NULL,
 			sola_level INTEGER NOT NULL DEFAULT 8,
 			drop_count INTEGER NOT NULL DEFAULT 0,
+			created_by_user_id BIGINT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_ascension_records_date ON ascension_records(date)`,
@@ -64,6 +66,7 @@ func EnsureSchema(ctx context.Context, database *sql.DB) error {
 			purple INTEGER NOT NULL DEFAULT 0,
 			blue INTEGER NOT NULL DEFAULT 0,
 			green INTEGER NOT NULL DEFAULT 0,
+			created_by_user_id BIGINT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_resonance_records_date ON resonance_records(date)`,
@@ -77,6 +80,15 @@ func EnsureSchema(ctx context.Context, database *sql.DB) error {
 	}
 
 	if err := ensureTacetRecordSchema(ctx, database); err != nil {
+		return err
+	}
+	if err := ensureCreatedByUserIDColumn(ctx, database, "tacet_records"); err != nil {
+		return err
+	}
+	if err := ensureCreatedByUserIDColumn(ctx, database, "ascension_records"); err != nil {
+		return err
+	}
+	if err := ensureCreatedByUserIDColumn(ctx, database, "resonance_records"); err != nil {
 		return err
 	}
 
@@ -149,12 +161,37 @@ func ensureTacetRecordSchema(ctx context.Context, database *sql.DB) error {
 	return err
 }
 
+func ensureCreatedByUserIDColumn(ctx context.Context, database *sql.DB, table string) error {
+	var columnExists bool
+	if err := database.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = 'public'
+			  AND table_name = $1
+			  AND column_name = 'created_by_user_id'
+		)
+	`, table).Scan(&columnExists); err != nil {
+		return err
+	}
+
+	if columnExists {
+		return nil
+	}
+
+	_, err := database.ExecContext(ctx, fmt.Sprintf(`
+		ALTER TABLE %s
+		ADD COLUMN created_by_user_id BIGINT
+	`, table))
+	return err
+}
+
 func PrintSchemaSummary() {
 	fmt.Println("表结构：")
 	fmt.Println("- 表名: tacet_records")
-	fmt.Println("- 字段: id, date, player_id, gold_tubes, purple_tubes, claim_count, sola_level, created_at")
+	fmt.Println("- 字段: id, date, player_id, gold_tubes, purple_tubes, claim_count, sola_level, created_by_user_id, created_at")
 	fmt.Println("- 表名: ascension_records")
-	fmt.Println("- 字段: id, date, player_id, sola_level, drop_count, created_at")
+	fmt.Println("- 字段: id, date, player_id, sola_level, drop_count, created_by_user_id, created_at")
 	fmt.Println("- 表名: resonance_records")
-	fmt.Println("- 字段: id, date, player_id, sola_level, gold, purple, blue, green, created_at")
+	fmt.Println("- 字段: id, date, player_id, sola_level, gold, purple, blue, green, created_by_user_id, created_at")
 }

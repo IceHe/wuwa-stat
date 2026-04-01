@@ -4,9 +4,9 @@ import { ElMessage } from 'element-plus'
 const AUTH_TOKEN_KEY = 'wuwa_auth_token'
 const AUTH_UNAUTHORIZED_EVENT = 'wuwa-auth-unauthorized'
 
-let authMePermissionsCache: Permission[] | null = null
+let authMeCache: AuthMeResponse | null = null
 let authMeCacheToken = ''
-let authMePendingRequest: Promise<Permission[]> | null = null
+let authMePendingRequest: Promise<AuthMeResponse> | null = null
 let authMePendingToken = ''
 
 const api = axios.create({
@@ -24,6 +24,7 @@ export interface TacetRecord {
   purple_tubes: number
   claim_count: 1 | 2
   sola_level: number
+  created_by_user_id?: number | null
   created_at?: string
 }
 
@@ -70,6 +71,7 @@ export interface AscensionRecord {
   player_id: string
   sola_level: number
   drop_count: number
+  created_by_user_id?: number | null
   created_at?: string
 }
 
@@ -106,6 +108,7 @@ export interface ResonanceRecord {
   purple: number
   blue: number
   green: number
+  created_by_user_id?: number | null
   created_at?: string
 }
 
@@ -140,6 +143,8 @@ export interface ResonanceDetailedStats {
 }
 
 export interface AuthMeResponse {
+  user_id: number
+  name: string
   permissions: Permission[]
 }
 
@@ -151,7 +156,7 @@ export const setStoredAuthToken = (token: string) => {
 
 export const clearStoredAuthToken = () => {
   localStorage.removeItem(AUTH_TOKEN_KEY)
-  authMePermissionsCache = null
+  authMeCache = null
   authMeCacheToken = ''
   authMePendingRequest = null
   authMePendingToken = ''
@@ -186,27 +191,27 @@ export const authEvents = {
   unauthorized: AUTH_UNAUTHORIZED_EVENT
 }
 
-const fetchAuthMePermissions = async (): Promise<Permission[]> => {
+const fetchAuthMe = async (): Promise<AuthMeResponse> => {
   const response = await api.get<AuthMeResponse>('/auth/me')
-  return response.data.permissions || []
+  return response.data
 }
 
-export const getAuthPermissions = async (forceRefresh = false): Promise<Permission[]> => {
+export const getAuthMe = async (forceRefresh = false): Promise<AuthMeResponse | null> => {
   const token = getStoredAuthToken()
   if (!token) {
-    authMePermissionsCache = null
+    authMeCache = null
     authMeCacheToken = ''
     authMePendingRequest = null
-    return []
+    return null
   }
 
   const shouldUseCache =
     !forceRefresh &&
-    authMePermissionsCache !== null &&
+    authMeCache !== null &&
     authMeCacheToken === token
 
   if (shouldUseCache) {
-    return authMePermissionsCache as Permission[]
+    return authMeCache
   }
 
   if (!forceRefresh && authMePendingRequest && authMePendingToken === token) {
@@ -214,11 +219,11 @@ export const getAuthPermissions = async (forceRefresh = false): Promise<Permissi
   }
 
   authMePendingToken = token
-  authMePendingRequest = fetchAuthMePermissions()
-    .then((permissions) => {
-      authMePermissionsCache = permissions
+  authMePendingRequest = fetchAuthMe()
+    .then((authMe) => {
+      authMeCache = authMe
       authMeCacheToken = token
-      return permissions
+      return authMe
     })
     .finally(() => {
       authMePendingRequest = null
@@ -229,7 +234,7 @@ export const getAuthPermissions = async (forceRefresh = false): Promise<Permissi
 }
 
 export const authApi = {
-  me: () => getAuthPermissions()
+  me: () => getAuthMe()
 }
 
 export const tacetApi = {

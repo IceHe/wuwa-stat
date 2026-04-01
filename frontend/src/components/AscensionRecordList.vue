@@ -28,6 +28,7 @@
       <el-table-column v-if="props.canEdit" label="操作" width="100" fixed="right">
         <template #default="{ row }">
           <el-popconfirm
+            v-if="canDeleteRecord(row)"
             title="确定要删除这条记录吗？"
             @confirm="handleDelete(row.id)"
           >
@@ -61,6 +62,8 @@ import { ElMessage } from 'element-plus'
 const props = defineProps<{
   refresh: number
   canEdit: boolean
+  canManage: boolean
+  currentUserId: number | null
 }>()
 
 const loading = ref(false)
@@ -119,6 +122,11 @@ const formatDateTime = (dateStr: string) => {
   const minutes = String(date.getMinutes()).padStart(2, '0')
   const seconds = String(date.getSeconds()).padStart(2, '0')
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+}
+
+const canDeleteRecord = (record: AscensionRecord) => {
+  if (props.canManage) return true
+  return props.canEdit && props.currentUserId !== null && record.created_by_user_id === props.currentUserId
 }
 
 const handleDelete = async (id: number) => {

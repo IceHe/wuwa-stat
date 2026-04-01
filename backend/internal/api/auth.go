@@ -26,6 +26,17 @@ type authValidator struct {
 	cfg    config.Config
 }
 
+type authContext struct {
+	UserID      int64
+	Permissions []string
+}
+
+type authUser struct {
+	ID          int64
+	Name        string
+	Permissions []string
+}
+
 type authError struct {
 	Status int
 	Detail string
@@ -43,18 +54,18 @@ func newAuthValidator(cfg config.Config) *authValidator {
 	}
 }
 
-func (v *authValidator) requireView(r *http.Request) ([]string, *authError) {
+func (v *authValidator) requireView(r *http.Request) (authContext, *authError) {
 	return v.requirePermission(r, "view")
 }
 
-func (v *authValidator) requireEdit(r *http.Request) ([]string, *authError) {
+func (v *authValidator) requireEdit(r *http.Request) (authContext, *authError) {
 	return v.requirePermission(r, "edit")
 }
 
-func (v *authValidator) requirePermission(r *http.Request, required string) ([]string, *authError) {
+func (v *authValidator) requirePermission(r *http.Request, required string) (authContext, *authError) {
 	token := extractToken(r)
 	if token == "" {
-		return nil, &authError{Status: http.StatusUnauthorized, Detail: authInvalidDetail}
+		return authContext{}, &authError{Status: http.StatusUnauthorized, Detail: authInvalidDetail}
 	}
 	return v.validateToken(r.Context(), token, required)
 }
@@ -77,7 +88,7 @@ func extractToken(r *http.Request) string {
 	return ""
 }
 
-func (v *authValidator) validateToken(ctx context.Context, token string, required string) ([]string, *authError) {
+func (v *authValidator) validateToken(ctx context.Context, token string, required string) (authContext, *authError) {
 	payload := map[string]string{"token": token}
 	if required != "" {
 		// Passing the required permission allows the auth service to short-circuit forbidden checks.
@@ -86,13 +97,13 @@ func (v *authValidator) validateToken(ctx context.Context, token string, require
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return nil, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
+		return authContext{}, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
 	}
 
 	url := strings.TrimRight(v.cfg.AuthServiceURL, "/") + "/api/validate"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
+		return authContext{}, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
 	}
 	req.Header.Set("Content-Type", "application/json")
 
@@ -100,51 +111,60 @@ func (v *authValidator) validateToken(ctx context.Context, token string, require
 	resp, err := v.client.Do(req)
 	if err != nil {
 		log.Printf("auth service request failed: permission=%s token_fp=%s url=%s elapsed_ms=%d error=%v", required, tokenFingerprint(token), url, time.Since(started).Milliseconds(), err)
-		return nil, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
+		return authContext{}, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 500 {
 		log.Printf("auth service upstream error: permission=%s token_fp=%s status_code=%d elapsed_ms=%d", required, tokenFingerprint(token), resp.StatusCode, time.Since(started).Milliseconds())
-		return nil, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
+		return authContext{}, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
 	}
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		return nil, &authError{Status: http.StatusUnauthorized, Detail: authInvalidDetail}
+		return authContext{}, &authError{Status: http.StatusUnauthorized, Detail: authInvalidDetail}
 	}
 
 	if resp.StatusCode == http.StatusForbidden {
-		return nil, &authError{Status: http.StatusForbidden, Detail: authForbiddenDetail}
+		return authContext{}, &authError{Status: http.StatusForbidden, Detail: authForbiddenDetail}
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("auth service unexpected status: permission=%s token_fp=%s status_code=%d elapsed_ms=%d", required, tokenFingerprint(token), resp.StatusCode, time.Since(started).Milliseconds())
-		return nil, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
+		return authContext{}, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
 	}
 
 	var result struct {
 		Valid       bool     `json:"valid"`
+		ID          int64    `json:"id"`
 		Reason      string   `json:"reason"`
 		Permissions []string `json:"permissions"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		log.Printf("auth service invalid json: permission=%s token_fp=%s elapsed_ms=%d error=%v", required, tokenFingerprint(token), time.Since(started).Milliseconds(), err)
-		return nil, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
+		return authContext{}, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
 	}
 
 	if !result.Valid {
 		if strings.EqualFold(result.Reason, "forbidden") {
-			return nil, &authError{Status: http.StatusForbidden, Detail: authForbiddenDetail}
+			return authContext{}, &authError{Status: http.StatusForbidden, Detail: authForbiddenDetail}
 		}
-		return nil, &authError{Status: http.StatusUnauthorized, Detail: authInvalidDetail}
+		return authContext{}, &authError{Status: http.StatusUnauthorized, Detail: authInvalidDetail}
 	}
 
 	if required != "" && !hasPermission(result.Permissions, required) {
-		return nil, &authError{Status: http.StatusForbidden, Detail: authForbiddenDetail}
+		return authContext{}, &authError{Status: http.StatusForbidden, Detail: authForbiddenDetail}
 	}
 
-	return result.Permissions, nil
+	if result.ID <= 0 {
+		log.Printf("auth service returned invalid user id: permission=%s token_fp=%s user_id=%d", required, tokenFingerprint(token), result.ID)
+		return authContext{}, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
+	}
+
+	return authContext{
+		UserID:      result.ID,
+		Permissions: result.Permissions,
+	}, nil
 }
 
 func hasPermission(permissions []string, required string) bool {
@@ -154,6 +174,68 @@ func hasPermission(permissions []string, required string) bool {
 		}
 	}
 	return false
+}
+
+func hasExactPermission(permissions []string, target string) bool {
+	for _, permission := range permissions {
+		if permission == target {
+			return true
+		}
+	}
+	return false
+}
+
+func (v *authValidator) lookupUser(ctx context.Context, token string) (authUser, *authError) {
+	payload := map[string]string{"token": token}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return authUser{}, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
+	}
+
+	url := strings.TrimRight(v.cfg.AuthServiceURL, "/") + "/api/login"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return authUser{}, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := v.client.Do(req)
+	if err != nil {
+		log.Printf("auth service user lookup failed: token_fp=%s url=%s error=%v", tokenFingerprint(token), url, err)
+		return authUser{}, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return authUser{}, &authError{Status: http.StatusUnauthorized, Detail: authInvalidDetail}
+	}
+	if resp.StatusCode == http.StatusForbidden {
+		return authUser{}, &authError{Status: http.StatusForbidden, Detail: authForbiddenDetail}
+	}
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("auth service user lookup unexpected status: token_fp=%s status_code=%d", tokenFingerprint(token), resp.StatusCode)
+		return authUser{}, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
+	}
+
+	var result struct {
+		ID          int64    `json:"id"`
+		Name        string   `json:"name"`
+		Permissions []string `json:"permissions"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		log.Printf("auth service user lookup invalid json: token_fp=%s error=%v", tokenFingerprint(token), err)
+		return authUser{}, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
+	}
+	if result.ID <= 0 || strings.TrimSpace(result.Name) == "" {
+		log.Printf("auth service user lookup returned invalid payload: token_fp=%s user_id=%d name=%q", tokenFingerprint(token), result.ID, result.Name)
+		return authUser{}, &authError{Status: http.StatusServiceUnavailable, Detail: authUnavailableDetail}
+	}
+
+	return authUser{
+		ID:          result.ID,
+		Name:        strings.TrimSpace(result.Name),
+		Permissions: result.Permissions,
+	}, nil
 }
 
 func tokenFingerprint(token string) string {

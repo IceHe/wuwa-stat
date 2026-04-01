@@ -7,6 +7,8 @@ type messageResponse struct {
 }
 
 type authMeResponse struct {
+	UserID      int64    `json:"user_id"`
+	Name        string   `json:"name"`
 	Permissions []string `json:"permissions"`
 }
 
@@ -31,14 +33,15 @@ type tacetBatchCreate struct {
 }
 
 type tacetRecordResponse struct {
-	ID          int64     `json:"id"`
-	Date        string    `json:"date"`
-	PlayerID    string    `json:"player_id"`
-	GoldTubes   int       `json:"gold_tubes"`
-	PurpleTubes int       `json:"purple_tubes"`
-	ClaimCount  int       `json:"claim_count"`
-	SolaLevel   int       `json:"sola_level"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID              int64     `json:"id"`
+	Date            string    `json:"date"`
+	PlayerID        string    `json:"player_id"`
+	GoldTubes       int       `json:"gold_tubes"`
+	PurpleTubes     int       `json:"purple_tubes"`
+	ClaimCount      int       `json:"claim_count"`
+	SolaLevel       int       `json:"sola_level"`
+	CreatedByUserID *int64    `json:"created_by_user_id"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 type statsResponse struct {
@@ -83,12 +86,13 @@ type ascensionBatchCreate struct {
 }
 
 type ascensionRecordResponse struct {
-	ID        int64     `json:"id"`
-	Date      string    `json:"date"`
-	PlayerID  string    `json:"player_id"`
-	SolaLevel int       `json:"sola_level"`
-	DropCount int       `json:"drop_count"`
-	CreatedAt time.Time `json:"created_at"`
+	ID              int64     `json:"id"`
+	Date            string    `json:"date"`
+	PlayerID        string    `json:"player_id"`
+	SolaLevel       int       `json:"sola_level"`
+	DropCount       int       `json:"drop_count"`
+	CreatedByUserID *int64    `json:"created_by_user_id"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 type ascensionDropCombination struct {
@@ -123,15 +127,16 @@ type resonanceBatchCreate struct {
 }
 
 type resonanceRecordResponse struct {
-	ID        int64     `json:"id"`
-	Date      string    `json:"date"`
-	PlayerID  string    `json:"player_id"`
-	SolaLevel int       `json:"sola_level"`
-	Gold      int       `json:"gold"`
-	Purple    int       `json:"purple"`
-	Blue      int       `json:"blue"`
-	Green     int       `json:"green"`
-	CreatedAt time.Time `json:"created_at"`
+	ID              int64     `json:"id"`
+	Date            string    `json:"date"`
+	PlayerID        string    `json:"player_id"`
+	SolaLevel       int       `json:"sola_level"`
+	Gold            int       `json:"gold"`
+	Purple          int       `json:"purple"`
+	Blue            int       `json:"blue"`
+	Green           int       `json:"green"`
+	CreatedByUserID *int64    `json:"created_by_user_id"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 type resonanceDropCombination struct {

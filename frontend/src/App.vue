@@ -3,7 +3,10 @@
     <el-header>
       <div class="header-content">
         <h1>鸣潮产出统计</h1>
-        <el-button v-if="isLoggedIn" @click="handleLogout">退出登录</el-button>
+        <div v-if="isLoggedIn" class="header-actions">
+          <span class="current-user">{{ currentUserName }}</span>
+          <el-button @click="handleLogout">退出登录</el-button>
+        </div>
       </div>
     </el-header>
 
@@ -38,19 +41,37 @@
       <el-tabs v-else v-model="activeTab">
         <el-tab-pane label="无音区产出统计" name="tacet" lazy>
           <TacetRecordInput v-if="canEdit" @success="handleInputSuccess" />
-          <TacetRecordList :refresh="refreshTrigger" :can-edit="canEdit" class="mt-16" />
+          <TacetRecordList
+            :refresh="refreshTrigger"
+            :can-edit="canEdit"
+            :can-manage="canManage"
+            :current-user-id="currentUserId"
+            class="mt-16"
+          />
           <TacetStatsView :refresh="refreshTrigger" class="mt-16" />
         </el-tab-pane>
 
         <el-tab-pane label="共鸣者突破材料统计" name="ascension" lazy>
           <AscensionRecordInput v-if="canEdit" @success="handleAscensionInputSuccess" />
-          <AscensionRecordList :refresh="ascensionRefreshTrigger" :can-edit="canEdit" class="mt-16" />
+          <AscensionRecordList
+            :refresh="ascensionRefreshTrigger"
+            :can-edit="canEdit"
+            :can-manage="canManage"
+            :current-user-id="currentUserId"
+            class="mt-16"
+          />
           <AscensionStatsView :refresh="ascensionRefreshTrigger" class="mt-16" />
         </el-tab-pane>
 
         <el-tab-pane label="凝素领域产出统计" name="resonance" lazy>
           <ResonanceRecordInput v-if="canEdit" @success="handleResonanceInputSuccess" />
-          <ResonanceRecordList :refresh="resonanceRefreshTrigger" :can-edit="canEdit" class="mt-16" />
+          <ResonanceRecordList
+            :refresh="resonanceRefreshTrigger"
+            :can-edit="canEdit"
+            :can-manage="canManage"
+            :current-user-id="currentUserId"
+            class="mt-16"
+          />
           <ResonanceStatsView :refresh="resonanceRefreshTrigger" class="mt-16" />
         </el-tab-pane>
       </el-tabs>
@@ -76,6 +97,7 @@ import {
   clearStoredAuthToken,
   getStoredAuthToken,
   setStoredAuthToken,
+  type AuthMeResponse,
   type Permission
 } from './api'
 
@@ -86,10 +108,15 @@ const resonanceRefreshTrigger = ref(0)
 const tokenInput = ref('')
 const authLoading = ref(false)
 const isLoggedIn = ref(false)
-const permissions = ref<Permission[]>([])
+const authMe = ref<AuthMeResponse | null>(null)
+
+const permissions = computed<Permission[]>(() => authMe.value?.permissions || [])
+const currentUserId = computed<number | null>(() => authMe.value?.user_id ?? null)
+const currentUserName = computed(() => authMe.value?.name || '')
 
 const canView = computed(() => permissions.value.includes('view') || permissions.value.includes('manage'))
 const canEdit = computed(() => permissions.value.includes('edit') || permissions.value.includes('manage'))
+const canManage = computed(() => permissions.value.includes('manage'))
 
 const handleInputSuccess = () => {
   refreshTrigger.value++
@@ -105,7 +132,7 @@ const handleResonanceInputSuccess = () => {
 
 const resetAuthState = () => {
   isLoggedIn.value = false
-  permissions.value = []
+  authMe.value = null
   tokenInput.value = ''
 }
 
@@ -123,8 +150,8 @@ const restoreSession = async () => {
   authLoading.value = true
   try {
     tokenInput.value = token
-    const authPermissions = await authApi.me()
-    permissions.value = authPermissions
+    const auth = await authApi.me()
+    authMe.value = auth
     isLoggedIn.value = true
   } catch {
     clearStoredAuthToken()
@@ -144,8 +171,8 @@ const handleLogin = async () => {
   authLoading.value = true
   try {
     setStoredAuthToken(token)
-    const authPermissions = await authApi.me()
-    permissions.value = authPermissions
+    const auth = await authApi.me()
+    authMe.value = auth
     isLoggedIn.value = true
     ElMessage.success('登录成功')
   } catch {
@@ -197,9 +224,20 @@ onBeforeUnmount(() => {
   justify-content: space-between;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 h1 {
   margin: 0;
   font-size: 20px;
+}
+
+.current-user {
+  font-size: 14px;
+  opacity: 0.92;
 }
 
 .login-card {

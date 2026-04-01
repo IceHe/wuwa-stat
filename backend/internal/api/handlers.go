@@ -72,25 +72,25 @@ func (a *API) withCORS(next http.Handler) http.Handler {
 	})
 }
 
-func (a *API) withView(next func(http.ResponseWriter, *http.Request, []string)) http.HandlerFunc {
+func (a *API) withView(next func(http.ResponseWriter, *http.Request, authContext)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		permissions, err := a.auth.requireView(r)
+		auth, err := a.auth.requireView(r)
 		if err != nil {
 			writeError(w, err.Status, err.Detail)
 			return
 		}
-		next(w, r, permissions)
+		next(w, r, auth)
 	}
 }
 
-func (a *API) withEdit(next func(http.ResponseWriter, *http.Request, []string)) http.HandlerFunc {
+func (a *API) withEdit(next func(http.ResponseWriter, *http.Request, authContext)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		permissions, err := a.auth.requireEdit(r)
+		auth, err := a.auth.requireEdit(r)
 		if err != nil {
 			writeError(w, err.Status, err.Detail)
 			return
 		}
-		next(w, r, permissions)
+		next(w, r, auth)
 	}
 }
 
@@ -110,12 +110,24 @@ func (a *API) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func (a *API) handleAuthMe(w http.ResponseWriter, r *http.Request, permissions []string) {
+func (a *API) handleAuthMe(w http.ResponseWriter, r *http.Request, auth authContext) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
 		return
 	}
-	writeJSON(w, http.StatusOK, authMeResponse{Permissions: permissions})
+
+	token := extractToken(r)
+	user, err := a.auth.lookupUser(r.Context(), token)
+	if err != nil {
+		writeError(w, err.Status, err.Detail)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, authMeResponse{
+		UserID:      auth.UserID,
+		Name:        user.Name,
+		Permissions: auth.Permissions,
+	})
 }
 
 func (a *API) handleTacetRecords(w http.ResponseWriter, r *http.Request) {
@@ -137,7 +149,7 @@ func (a *API) handleTacetRecordByID(w http.ResponseWriter, r *http.Request) {
 	a.withEdit(a.deleteTacetRecord)(w, r)
 }
 
-func (a *API) createTacetRecords(w http.ResponseWriter, r *http.Request, _ []string) {
+func (a *API) createTacetRecords(w http.ResponseWriter, r *http.Request, auth authContext) {
 	var payload tacetBatchCreate
 	if err := readJSON(r, &payload); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -169,11 +181,11 @@ func (a *API) createTacetRecords(w http.ResponseWriter, r *http.Request, _ []str
 
 		var created tacetRecordResponse
 		err = tx.QueryRowContext(ctx, `
-			INSERT INTO tacet_records (date, player_id, gold_tubes, purple_tubes, claim_count, sola_level)
-			VALUES ($1, $2, $3, $4, $5, $6)
-			RETURNING id, date::text, player_id, gold_tubes, purple_tubes, claim_count, sola_level, created_at
-		`, record.Date, record.PlayerID, record.GoldTubes, record.PurpleTubes, record.ClaimCount, record.SolaLevel).
-			Scan(&created.ID, &created.Date, &created.PlayerID, &created.GoldTubes, &created.PurpleTubes, &created.ClaimCount, &created.SolaLevel, &created.CreatedAt)
+			INSERT INTO tacet_records (date, player_id, gold_tubes, purple_tubes, claim_count, sola_level, created_by_user_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			RETURNING id, date::text, player_id, gold_tubes, purple_tubes, claim_count, sola_level, created_by_user_id, created_at
+		`, record.Date, record.PlayerID, record.GoldTubes, record.PurpleTubes, record.ClaimCount, record.SolaLevel, auth.UserID).
+			Scan(&created.ID, &created.Date, &created.PlayerID, &created.GoldTubes, &created.PurpleTubes, &created.ClaimCount, &created.SolaLevel, &created.CreatedByUserID, &created.CreatedAt)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "数据库操作失败")
 			return
@@ -190,7 +202,7 @@ func (a *API) createTacetRecords(w http.ResponseWriter, r *http.Request, _ []str
 	writeJSON(w, http.StatusOK, records)
 }
 
-func (a *API) getTacetRecords(w http.ResponseWriter, r *http.Request, _ []string) {
+func (a *API) getTacetRecords(w http.ResponseWriter, r *http.Request, _ authContext) {
 	playerID := strings.TrimSpace(r.URL.Query().Get("player_id"))
 	startDate := strings.TrimSpace(r.URL.Query().Get("start_date"))
 	endDate := strings.TrimSpace(r.URL.Query().Get("end_date"))
@@ -226,7 +238,7 @@ func (a *API) getTacetRecords(w http.ResponseWriter, r *http.Request, _ []string
 		return
 	}
 
-	dataQuery := "SELECT id, date::text, player_id, gold_tubes, purple_tubes, claim_count, sola_level, created_at FROM tacet_records" +
+	dataQuery := "SELECT id, date::text, player_id, gold_tubes, purple_tubes, claim_count, sola_level, created_by_user_id, created_at FROM tacet_records" +
 		builder.whereClause() +
 		fmt.Sprintf(" ORDER BY created_at DESC, id DESC OFFSET $%d LIMIT $%d", len(builder.args)+1, len(builder.args)+2)
 	args := append(append([]any{}, builder.args...), skip, limit)
@@ -241,7 +253,7 @@ func (a *API) getTacetRecords(w http.ResponseWriter, r *http.Request, _ []string
 	var records []tacetRecordResponse
 	for rows.Next() {
 		var record tacetRecordResponse
-		if err := rows.Scan(&record.ID, &record.Date, &record.PlayerID, &record.GoldTubes, &record.PurpleTubes, &record.ClaimCount, &record.SolaLevel, &record.CreatedAt); err != nil {
+		if err := rows.Scan(&record.ID, &record.Date, &record.PlayerID, &record.GoldTubes, &record.PurpleTubes, &record.ClaimCount, &record.SolaLevel, &record.CreatedByUserID, &record.CreatedAt); err != nil {
 			writeError(w, http.StatusInternalServerError, "数据库操作失败")
 			return
 		}
@@ -256,7 +268,7 @@ func (a *API) getTacetRecords(w http.ResponseWriter, r *http.Request, _ []string
 	})
 }
 
-func (a *API) handleTacetStats(w http.ResponseWriter, r *http.Request, _ []string) {
+func (a *API) handleTacetStats(w http.ResponseWriter, r *http.Request, _ authContext) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
 		return
@@ -298,7 +310,7 @@ func (a *API) handleTacetStats(w http.ResponseWriter, r *http.Request, _ []strin
 	writeJSON(w, http.StatusOK, resp)
 }
 
-func (a *API) handleTacetDetailedStats(w http.ResponseWriter, r *http.Request, _ []string) {
+func (a *API) handleTacetDetailedStats(w http.ResponseWriter, r *http.Request, _ authContext) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
 		return
@@ -409,7 +421,7 @@ func (a *API) handleTacetDetailedStats(w http.ResponseWriter, r *http.Request, _
 	writeJSON(w, http.StatusOK, response)
 }
 
-func (a *API) handleTacetPlayerIDs(w http.ResponseWriter, r *http.Request, _ []string) {
+func (a *API) handleTacetPlayerIDs(w http.ResponseWriter, r *http.Request, _ authContext) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
 		return
@@ -423,14 +435,18 @@ func (a *API) handleTacetPlayerIDs(w http.ResponseWriter, r *http.Request, _ []s
 	writeJSON(w, http.StatusOK, playerIDs)
 }
 
-func (a *API) deleteTacetRecord(w http.ResponseWriter, r *http.Request, _ []string) {
+func (a *API) deleteTacetRecord(w http.ResponseWriter, r *http.Request, auth authContext) {
 	recordID, err := parseIDFromPath(r.URL.Path, "/api/tacet_records/")
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "记录 ID 无效")
 		return
 	}
 
-	deleted, err := deleteByID(r.Context(), a.db, "tacet_records", recordID)
+	deleted, authErr, err := deleteByID(r.Context(), a.db, "tacet_records", recordID, auth)
+	if authErr != nil {
+		writeError(w, authErr.Status, authErr.Detail)
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "数据库操作失败")
 		return
@@ -462,7 +478,7 @@ func (a *API) handleAscensionRecordByID(w http.ResponseWriter, r *http.Request) 
 	a.withEdit(a.deleteAscensionRecord)(w, r)
 }
 
-func (a *API) createAscensionRecords(w http.ResponseWriter, r *http.Request, _ []string) {
+func (a *API) createAscensionRecords(w http.ResponseWriter, r *http.Request, auth authContext) {
 	var payload ascensionBatchCreate
 	if err := readJSON(r, &payload); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -494,11 +510,11 @@ func (a *API) createAscensionRecords(w http.ResponseWriter, r *http.Request, _ [
 
 		var created ascensionRecordResponse
 		err = tx.QueryRowContext(ctx, `
-			INSERT INTO ascension_records (date, player_id, sola_level, drop_count)
-			VALUES ($1, $2, $3, $4)
-			RETURNING id, date::text, player_id, sola_level, drop_count, created_at
-		`, record.Date, record.PlayerID, record.SolaLevel, record.DropCount).
-			Scan(&created.ID, &created.Date, &created.PlayerID, &created.SolaLevel, &created.DropCount, &created.CreatedAt)
+			INSERT INTO ascension_records (date, player_id, sola_level, drop_count, created_by_user_id)
+			VALUES ($1, $2, $3, $4, $5)
+			RETURNING id, date::text, player_id, sola_level, drop_count, created_by_user_id, created_at
+		`, record.Date, record.PlayerID, record.SolaLevel, record.DropCount, auth.UserID).
+			Scan(&created.ID, &created.Date, &created.PlayerID, &created.SolaLevel, &created.DropCount, &created.CreatedByUserID, &created.CreatedAt)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "数据库操作失败")
 			return
@@ -514,7 +530,7 @@ func (a *API) createAscensionRecords(w http.ResponseWriter, r *http.Request, _ [
 	writeJSON(w, http.StatusOK, records)
 }
 
-func (a *API) getAscensionRecords(w http.ResponseWriter, r *http.Request, _ []string) {
+func (a *API) getAscensionRecords(w http.ResponseWriter, r *http.Request, _ authContext) {
 	playerID := strings.TrimSpace(r.URL.Query().Get("player_id"))
 	startDate := strings.TrimSpace(r.URL.Query().Get("start_date"))
 	endDate := strings.TrimSpace(r.URL.Query().Get("end_date"))
@@ -550,7 +566,7 @@ func (a *API) getAscensionRecords(w http.ResponseWriter, r *http.Request, _ []st
 		return
 	}
 
-	dataQuery := "SELECT id, date::text, player_id, sola_level, drop_count, created_at FROM ascension_records" +
+	dataQuery := "SELECT id, date::text, player_id, sola_level, drop_count, created_by_user_id, created_at FROM ascension_records" +
 		builder.whereClause() +
 		fmt.Sprintf(" ORDER BY created_at DESC, id DESC OFFSET $%d LIMIT $%d", len(builder.args)+1, len(builder.args)+2)
 	args := append(append([]any{}, builder.args...), skip, limit)
@@ -565,7 +581,7 @@ func (a *API) getAscensionRecords(w http.ResponseWriter, r *http.Request, _ []st
 	var records []ascensionRecordResponse
 	for rows.Next() {
 		var record ascensionRecordResponse
-		if err := rows.Scan(&record.ID, &record.Date, &record.PlayerID, &record.SolaLevel, &record.DropCount, &record.CreatedAt); err != nil {
+		if err := rows.Scan(&record.ID, &record.Date, &record.PlayerID, &record.SolaLevel, &record.DropCount, &record.CreatedByUserID, &record.CreatedAt); err != nil {
 			writeError(w, http.StatusInternalServerError, "数据库操作失败")
 			return
 		}
@@ -580,7 +596,7 @@ func (a *API) getAscensionRecords(w http.ResponseWriter, r *http.Request, _ []st
 	})
 }
 
-func (a *API) handleAscensionDetailedStats(w http.ResponseWriter, r *http.Request, _ []string) {
+func (a *API) handleAscensionDetailedStats(w http.ResponseWriter, r *http.Request, _ authContext) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
 		return
@@ -672,7 +688,7 @@ func (a *API) handleAscensionDetailedStats(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, response)
 }
 
-func (a *API) handleAscensionPlayerIDs(w http.ResponseWriter, r *http.Request, _ []string) {
+func (a *API) handleAscensionPlayerIDs(w http.ResponseWriter, r *http.Request, _ authContext) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
 		return
@@ -685,14 +701,18 @@ func (a *API) handleAscensionPlayerIDs(w http.ResponseWriter, r *http.Request, _
 	writeJSON(w, http.StatusOK, playerIDs)
 }
 
-func (a *API) deleteAscensionRecord(w http.ResponseWriter, r *http.Request, _ []string) {
+func (a *API) deleteAscensionRecord(w http.ResponseWriter, r *http.Request, auth authContext) {
 	recordID, err := parseIDFromPath(r.URL.Path, "/api/ascension-records/")
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "记录 ID 无效")
 		return
 	}
 
-	deleted, err := deleteByID(r.Context(), a.db, "ascension_records", recordID)
+	deleted, authErr, err := deleteByID(r.Context(), a.db, "ascension_records", recordID, auth)
+	if authErr != nil {
+		writeError(w, authErr.Status, authErr.Detail)
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "数据库操作失败")
 		return
@@ -724,7 +744,7 @@ func (a *API) handleResonanceRecordByID(w http.ResponseWriter, r *http.Request) 
 	a.withEdit(a.deleteResonanceRecord)(w, r)
 }
 
-func (a *API) createResonanceRecords(w http.ResponseWriter, r *http.Request, _ []string) {
+func (a *API) createResonanceRecords(w http.ResponseWriter, r *http.Request, auth authContext) {
 	var payload resonanceBatchCreate
 	if err := readJSON(r, &payload); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -756,11 +776,11 @@ func (a *API) createResonanceRecords(w http.ResponseWriter, r *http.Request, _ [
 
 		var created resonanceRecordResponse
 		err = tx.QueryRowContext(ctx, `
-			INSERT INTO resonance_records (date, player_id, sola_level, gold, purple, blue, green)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
-			RETURNING id, date::text, player_id, sola_level, gold, purple, blue, green, created_at
-		`, record.Date, record.PlayerID, record.SolaLevel, record.Gold, record.Purple, record.Blue, record.Green).
-			Scan(&created.ID, &created.Date, &created.PlayerID, &created.SolaLevel, &created.Gold, &created.Purple, &created.Blue, &created.Green, &created.CreatedAt)
+			INSERT INTO resonance_records (date, player_id, sola_level, gold, purple, blue, green, created_by_user_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			RETURNING id, date::text, player_id, sola_level, gold, purple, blue, green, created_by_user_id, created_at
+		`, record.Date, record.PlayerID, record.SolaLevel, record.Gold, record.Purple, record.Blue, record.Green, auth.UserID).
+			Scan(&created.ID, &created.Date, &created.PlayerID, &created.SolaLevel, &created.Gold, &created.Purple, &created.Blue, &created.Green, &created.CreatedByUserID, &created.CreatedAt)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "数据库操作失败")
 			return
@@ -776,7 +796,7 @@ func (a *API) createResonanceRecords(w http.ResponseWriter, r *http.Request, _ [
 	writeJSON(w, http.StatusOK, records)
 }
 
-func (a *API) getResonanceRecords(w http.ResponseWriter, r *http.Request, _ []string) {
+func (a *API) getResonanceRecords(w http.ResponseWriter, r *http.Request, _ authContext) {
 	playerID := strings.TrimSpace(r.URL.Query().Get("player_id"))
 	startDate := strings.TrimSpace(r.URL.Query().Get("start_date"))
 	endDate := strings.TrimSpace(r.URL.Query().Get("end_date"))
@@ -812,7 +832,7 @@ func (a *API) getResonanceRecords(w http.ResponseWriter, r *http.Request, _ []st
 		return
 	}
 
-	dataQuery := "SELECT id, date::text, player_id, sola_level, gold, purple, blue, green, created_at FROM resonance_records" +
+	dataQuery := "SELECT id, date::text, player_id, sola_level, gold, purple, blue, green, created_by_user_id, created_at FROM resonance_records" +
 		builder.whereClause() +
 		fmt.Sprintf(" ORDER BY created_at DESC, id DESC OFFSET $%d LIMIT $%d", len(builder.args)+1, len(builder.args)+2)
 	args := append(append([]any{}, builder.args...), skip, limit)
@@ -827,7 +847,7 @@ func (a *API) getResonanceRecords(w http.ResponseWriter, r *http.Request, _ []st
 	var records []resonanceRecordResponse
 	for rows.Next() {
 		var record resonanceRecordResponse
-		if err := rows.Scan(&record.ID, &record.Date, &record.PlayerID, &record.SolaLevel, &record.Gold, &record.Purple, &record.Blue, &record.Green, &record.CreatedAt); err != nil {
+		if err := rows.Scan(&record.ID, &record.Date, &record.PlayerID, &record.SolaLevel, &record.Gold, &record.Purple, &record.Blue, &record.Green, &record.CreatedByUserID, &record.CreatedAt); err != nil {
 			writeError(w, http.StatusInternalServerError, "数据库操作失败")
 			return
 		}
@@ -842,7 +862,7 @@ func (a *API) getResonanceRecords(w http.ResponseWriter, r *http.Request, _ []st
 	})
 }
 
-func (a *API) handleResonanceDetailedStats(w http.ResponseWriter, r *http.Request, _ []string) {
+func (a *API) handleResonanceDetailedStats(w http.ResponseWriter, r *http.Request, _ authContext) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
 		return
@@ -958,7 +978,7 @@ func (a *API) handleResonanceDetailedStats(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, response)
 }
 
-func (a *API) handleResonancePlayerIDs(w http.ResponseWriter, r *http.Request, _ []string) {
+func (a *API) handleResonancePlayerIDs(w http.ResponseWriter, r *http.Request, _ authContext) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
 		return
@@ -971,14 +991,18 @@ func (a *API) handleResonancePlayerIDs(w http.ResponseWriter, r *http.Request, _
 	writeJSON(w, http.StatusOK, playerIDs)
 }
 
-func (a *API) deleteResonanceRecord(w http.ResponseWriter, r *http.Request, _ []string) {
+func (a *API) deleteResonanceRecord(w http.ResponseWriter, r *http.Request, auth authContext) {
 	recordID, err := parseIDFromPath(r.URL.Path, "/api/resonance-records/")
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "记录 ID 无效")
 		return
 	}
 
-	deleted, err := deleteByID(r.Context(), a.db, "resonance_records", recordID)
+	deleted, authErr, err := deleteByID(r.Context(), a.db, "resonance_records", recordID, auth)
+	if authErr != nil {
+		writeError(w, authErr.Status, authErr.Detail)
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "数据库操作失败")
 		return
@@ -1010,22 +1034,37 @@ func queryPlayerIDs(ctx context.Context, database *sql.DB, table string) ([]stri
 	return playerIDs, nil
 }
 
-func deleteByID(ctx context.Context, database *sql.DB, table string, id int64) (bool, error) {
+func deleteByID(ctx context.Context, database *sql.DB, table string, id int64, auth authContext) (bool, *authError, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+
+	var createdByUserID sql.NullInt64
+	err := database.QueryRowContext(ctx, fmt.Sprintf("SELECT created_by_user_id FROM %s WHERE id = $1", table), id).Scan(&createdByUserID)
+	if err == sql.ErrNoRows {
+		return false, nil, nil
+	}
+	if err != nil {
+		return false, nil, err
+	}
+
+	if !hasExactPermission(auth.Permissions, "manage") {
+		if !createdByUserID.Valid || createdByUserID.Int64 != auth.UserID {
+			return false, &authError{Status: http.StatusForbidden, Detail: authForbiddenDetail}, nil
+		}
+	}
 
 	query := fmt.Sprintf("DELETE FROM %s WHERE id = $1", table)
 	result, err := database.ExecContext(ctx, query, id)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 
-	return rowsAffected > 0, nil
+	return rowsAffected > 0, nil, nil
 }
 
 type filterBuilder struct {
