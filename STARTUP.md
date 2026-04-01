@@ -5,6 +5,8 @@
 - 共鸣者突破材料统计
 - 凝素领域产出统计
 
+后端当前默认实现为 Go，建议使用 `Go 1.22+`。
+
 ## 启动后端
 
 ```bash
@@ -13,14 +15,12 @@ cd /root/wuwa/stat/backend
 cp .env.example .env
 # 按实际情况编辑 .env 中的 DATABASE_URL 和 FRONTEND_URL
 
-pip install -r requirements.txt
-python init_db.py
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+go run ./cmd/initdb
+go run ./cmd/server
 ```
 
 启动后访问：
 - 应用接口：`http://localhost:8000`
-- API 文档：`http://localhost:8000/docs`
 - 健康检查：`http://localhost:8000/health`
 
 ## 启动前端
@@ -106,7 +106,7 @@ curl --noproxy localhost -X POST "http://localhost:8000/api/tacet_records" \
 
 ## 停止服务
 
-- 停止后端：结束运行 `uvicorn` 的终端或进程
+- 停止后端：结束运行 `go run ./cmd/server` 的终端或进程
 - 停止前端：结束运行 `npm run dev` 的终端
 
 ## 数据库备注

@@ -7,24 +7,22 @@
 
 ## 技术栈
 
-- **后端**: FastAPI + SQLAlchemy + PostgreSQL
+- **后端**: Go + net/http + database/sql + PostgreSQL
 - **前端**: Vue 3 + TypeScript + Element Plus + Vite
 - **鉴权**: 基于外部鉴权服务的 Token 权限校验
 
 ## 项目结构
 
 ```text
-├── backend/              # FastAPI 后端
-│   ├── app/
-│   │   ├── main.py       # 主应用与 OpenAPI 配置
-│   │   ├── models.py     # 数据库模型
-│   │   ├── schemas.py    # Pydantic schemas
-│   │   ├── database.py   # 数据库连接与配置
-│   │   ├── auth.py       # Token 鉴权
-│   │   └── api/
-│   │       └── routes.py # 三类统计模块 API
-│   ├── init_db.py        # 初始化数据库
-│   ├── requirements.txt
+├── backend/              # Go 后端
+│   ├── cmd/
+│   │   ├── server/       # HTTP 服务入口
+│   │   └── initdb/       # 初始化数据库入口
+│   ├── internal/
+│   │   ├── api/          # 路由、鉴权、响应结构
+│   │   ├── config/       # .env 与配置加载
+│   │   └── db/           # 数据库连接与建表/补字段
+│   ├── go.mod
 │   └── .env.example
 └── frontend/             # Vue 3 前端
     ├── src/
@@ -36,8 +34,11 @@
 ```
 
 说明：项目只有顶层 `frontend/` 这一个前端工程。
+原 Python 实现仍保留在 `backend/app/` 作为迁移对照，不再作为默认运行后端。
 
 ## 快速开始
+
+需要 `Go 1.22+`。
 
 ### 1. 数据库配置
 
@@ -55,9 +56,8 @@ cd backend
 cp .env.example .env
 # 编辑 .env 中的 DATABASE_URL 和 FRONTEND_URL
 
-pip install -r requirements.txt
-python init_db.py
-uvicorn app.main:app --reload --port 8000
+go run ./cmd/initdb
+go run ./cmd/server
 ```
 
 后端将运行在 `http://localhost:8000`
@@ -116,10 +116,6 @@ npm run dev
 - 删除单条记录
 - API 通过 Vite 代理到后端
 
-## API 文档
-
-启动后访问：`http://localhost:8000/docs`
-
 ## 数据模型
 
 - `tacet_records`：无音区产出记录
@@ -130,10 +126,10 @@ npm run dev
 
 ### 后端开发
 
-- API 位于 `backend/app/api/routes.py`
-- 数据库模型位于 `backend/app/models.py`
-- 当前通过 `Base.metadata.create_all()` 建表
-- OpenAPI 文档标题与描述由 `backend/app/main.py` 提供
+- HTTP 入口位于 `backend/cmd/server/main.go`
+- 接口实现位于 `backend/internal/api/handlers.go`
+- 数据库初始化与补字段位于 `backend/internal/db/postgres.go`
+- 配置加载位于 `backend/internal/config/config.go`
 
 ### 前端开发
 
@@ -148,8 +144,7 @@ npm run dev
 
 ```bash
 cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+go run ./cmd/server
 ```
 
 ### 前端部署
