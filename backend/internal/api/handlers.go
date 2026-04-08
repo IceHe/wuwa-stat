@@ -776,11 +776,11 @@ func (a *API) createResonanceRecords(w http.ResponseWriter, r *http.Request, aut
 
 		var created resonanceRecordResponse
 		err = tx.QueryRowContext(ctx, `
-			INSERT INTO resonance_records (date, player_id, sola_level, gold, purple, blue, green, created_by_user_id)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-			RETURNING id, date::text, player_id, sola_level, gold, purple, blue, green, created_by_user_id, created_at
-		`, record.Date, record.PlayerID, record.SolaLevel, record.Gold, record.Purple, record.Blue, record.Green, auth.UserID).
-			Scan(&created.ID, &created.Date, &created.PlayerID, &created.SolaLevel, &created.Gold, &created.Purple, &created.Blue, &created.Green, &created.CreatedByUserID, &created.CreatedAt)
+			INSERT INTO resonance_records (date, player_id, sola_level, claim_count, gold, purple, blue, green, created_by_user_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			RETURNING id, date::text, player_id, sola_level, claim_count, gold, purple, blue, green, created_by_user_id, created_at
+		`, record.Date, record.PlayerID, record.SolaLevel, record.ClaimCount, record.Gold, record.Purple, record.Blue, record.Green, auth.UserID).
+			Scan(&created.ID, &created.Date, &created.PlayerID, &created.SolaLevel, &created.ClaimCount, &created.Gold, &created.Purple, &created.Blue, &created.Green, &created.CreatedByUserID, &created.CreatedAt)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "数据库操作失败")
 			return
@@ -832,7 +832,7 @@ func (a *API) getResonanceRecords(w http.ResponseWriter, r *http.Request, _ auth
 		return
 	}
 
-	dataQuery := "SELECT id, date::text, player_id, sola_level, gold, purple, blue, green, created_by_user_id, created_at FROM resonance_records" +
+	dataQuery := "SELECT id, date::text, player_id, sola_level, claim_count, gold, purple, blue, green, created_by_user_id, created_at FROM resonance_records" +
 		builder.whereClause() +
 		fmt.Sprintf(" ORDER BY created_at DESC, id DESC OFFSET $%d LIMIT $%d", len(builder.args)+1, len(builder.args)+2)
 	args := append(append([]any{}, builder.args...), skip, limit)
@@ -847,7 +847,7 @@ func (a *API) getResonanceRecords(w http.ResponseWriter, r *http.Request, _ auth
 	var records []resonanceRecordResponse
 	for rows.Next() {
 		var record resonanceRecordResponse
-		if err := rows.Scan(&record.ID, &record.Date, &record.PlayerID, &record.SolaLevel, &record.Gold, &record.Purple, &record.Blue, &record.Green, &record.CreatedByUserID, &record.CreatedAt); err != nil {
+		if err := rows.Scan(&record.ID, &record.Date, &record.PlayerID, &record.SolaLevel, &record.ClaimCount, &record.Gold, &record.Purple, &record.Blue, &record.Green, &record.CreatedByUserID, &record.CreatedAt); err != nil {
 			writeError(w, http.StatusInternalServerError, "数据库操作失败")
 			return
 		}
@@ -882,9 +882,9 @@ func (a *API) handleResonanceDetailedStats(w http.ResponseWriter, r *http.Reques
 	defer cancel()
 
 	query := `
-		SELECT sola_level, gold, purple, blue, green, COUNT(*) AS count
+		SELECT sola_level, claim_count, gold, purple, blue, green, COUNT(*) AS count
 		FROM resonance_records` + builder.whereClause() + `
-		GROUP BY sola_level, gold, purple, blue, green`
+		GROUP BY sola_level, claim_count, gold, purple, blue, green`
 
 	rows, err := a.db.QueryContext(ctx, query, builder.args...)
 	if err != nil {
@@ -894,22 +894,35 @@ func (a *API) handleResonanceDetailedStats(w http.ResponseWriter, r *http.Reques
 	defer rows.Close()
 
 	type entry struct {
-		Gold   int
-		Purple int
-		Blue   int
-		Green  int
-		Count  int
+		ClaimCount int
+		Gold       int
+		Purple     int
+		Blue       int
+		Green      int
+		Count      int
 	}
 
-	levelData := map[int][]entry{}
+	levelData := map[int]map[[5]int]int{}
 	for rows.Next() {
 		var solaLevel int
 		var item entry
-		if err := rows.Scan(&solaLevel, &item.Gold, &item.Purple, &item.Blue, &item.Green, &item.Count); err != nil {
+		if err := rows.Scan(&solaLevel, &item.ClaimCount, &item.Gold, &item.Purple, &item.Blue, &item.Green, &item.Count); err != nil {
 			writeError(w, http.StatusInternalServerError, "数据库操作失败")
 			return
 		}
-		levelData[solaLevel] = append(levelData[solaLevel], item)
+		item.Gold, item.Purple, item.Blue, item.Green = normalizeResonanceDropForStats(
+			solaLevel,
+			item.ClaimCount,
+			item.Gold,
+			item.Purple,
+			item.Blue,
+			item.Green,
+		)
+		if _, ok := levelData[solaLevel]; !ok {
+			levelData[solaLevel] = map[[5]int]int{}
+		}
+		key := [5]int{item.ClaimCount, item.Gold, item.Purple, item.Blue, item.Green}
+		levelData[solaLevel][key] += item.Count
 	}
 
 	levels := mapKeys(levelData)
@@ -917,8 +930,22 @@ func (a *API) handleResonanceDetailedStats(w http.ResponseWriter, r *http.Reques
 
 	response := resonanceDetailedStatsResponse{LevelStats: make([]resonanceSolaLevelStats, 0, len(levels))}
 	for _, level := range levels {
-		entries := levelData[level]
+		entryMap := levelData[level]
+		entries := make([]entry, 0, len(entryMap))
+		for key, count := range entryMap {
+			entries = append(entries, entry{
+				ClaimCount: key[0],
+				Gold:       key[1],
+				Purple:     key[2],
+				Blue:       key[3],
+				Green:      key[4],
+				Count:      count,
+			})
+		}
 		sort.Slice(entries, func(i, j int) bool {
+			if entries[i].ClaimCount != entries[j].ClaimCount {
+				return entries[i].ClaimCount > entries[j].ClaimCount
+			}
 			if entries[i].Gold != entries[j].Gold {
 				return entries[i].Gold > entries[j].Gold
 			}
@@ -932,12 +959,14 @@ func (a *API) handleResonanceDetailedStats(w http.ResponseWriter, r *http.Reques
 		})
 
 		totalCount := 0
+		totalClaimCount := 0
 		totalGold := 0
 		totalPurple := 0
 		totalBlue := 0
 		totalGreen := 0
 		for _, item := range entries {
 			totalCount += item.Count
+			totalClaimCount += item.ClaimCount * item.Count
 			totalGold += item.Gold * item.Count
 			totalPurple += item.Purple * item.Count
 			totalBlue += item.Blue * item.Count
@@ -951,6 +980,7 @@ func (a *API) handleResonanceDetailedStats(w http.ResponseWriter, r *http.Reques
 				percentage = roundTo(float64(item.Count)/float64(totalCount)*100, 1)
 			}
 			combinations = append(combinations, resonanceDropCombination{
+				ClaimCount: item.ClaimCount,
 				Gold:       item.Gold,
 				Purple:     item.Purple,
 				Blue:       item.Blue,
@@ -961,15 +991,20 @@ func (a *API) handleResonanceDetailedStats(w http.ResponseWriter, r *http.Reques
 		}
 
 		levelStats := resonanceSolaLevelStats{
-			SolaLevel:    level,
-			Combinations: combinations,
-			TotalCount:   totalCount,
+			SolaLevel:       level,
+			Combinations:    combinations,
+			TotalCount:      totalCount,
+			TotalClaimCount: totalClaimCount,
+			TotalGold:       totalGold,
+			TotalPurple:     totalPurple,
+			TotalBlue:       totalBlue,
+			TotalGreen:      totalGreen,
 		}
-		if totalCount > 0 {
-			levelStats.AvgGold = roundTo(float64(totalGold)/float64(totalCount), 2)
-			levelStats.AvgPurple = roundTo(float64(totalPurple)/float64(totalCount), 2)
-			levelStats.AvgBlue = roundTo(float64(totalBlue)/float64(totalCount), 2)
-			levelStats.AvgGreen = roundTo(float64(totalGreen)/float64(totalCount), 2)
+		if totalClaimCount > 0 {
+			levelStats.AvgGold = roundTo(float64(totalGold)/float64(totalClaimCount), 2)
+			levelStats.AvgPurple = roundTo(float64(totalPurple)/float64(totalClaimCount), 2)
+			levelStats.AvgBlue = roundTo(float64(totalBlue)/float64(totalClaimCount), 2)
+			levelStats.AvgGreen = roundTo(float64(totalGreen)/float64(totalClaimCount), 2)
 		}
 
 		response.LevelStats = append(response.LevelStats, levelStats)
@@ -1168,6 +1203,12 @@ func validateResonanceRecord(input resonanceRecordInput) (resonanceRecordInput, 
 	if input.Gold < 0 || input.Purple < 0 || input.Blue < 0 || input.Green < 0 {
 		return resonanceRecordInput{}, fmt.Errorf("掉落数量不能为负数")
 	}
+	if input.ClaimCount == 0 {
+		input.ClaimCount = 1
+	}
+	if input.ClaimCount < 1 || input.ClaimCount > 2 {
+		return resonanceRecordInput{}, fmt.Errorf("claim_count 必须为 1 或 2")
+	}
 	if input.SolaLevel == 0 {
 		input.SolaLevel = 8
 	}
@@ -1298,6 +1339,20 @@ func lessCombo(left, right [2]int) bool {
 		return left[0] < right[0]
 	}
 	return left[1] < right[1]
+}
+
+func normalizeResonanceDropForStats(
+	solaLevel, claimCount, gold, purple, blue, green int,
+) (int, int, int, int) {
+	if solaLevel == 8 {
+		if claimCount <= 1 {
+			blue = 8
+		} else if claimCount == 2 {
+			blue = 16
+		}
+	}
+
+	return gold, purple, blue, green
 }
 
 func mapKeys[V any](items map[int]V) []int {

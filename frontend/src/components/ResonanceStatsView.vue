@@ -32,7 +32,8 @@
         </el-table>
 
         <el-descriptions :column="2" border style="margin-bottom: 16px">
-          <el-descriptions-item label="统计次数">{{ level8Summary.totalCount }}</el-descriptions-item>
+          <el-descriptions-item label="统计记录数">{{ level8Summary.totalCount }}</el-descriptions-item>
+          <el-descriptions-item label="统计领取次数">{{ level8Summary.totalClaimCount }}</el-descriptions-item>
           <el-descriptions-item label="双倍一周总领取次数">{{ weeklyDoubleRuns }}</el-descriptions-item>
         </el-descriptions>
 
@@ -84,15 +85,16 @@ const level8Summary = computed(() => {
   if (!level8) return null
 
   const totalCount = level8.total_count
-  const totalGold = level8.combinations.reduce((sum, combo) => sum + combo.gold * combo.count, 0)
-  const totalPurple = level8.combinations.reduce((sum, combo) => sum + combo.purple * combo.count, 0)
-  const totalBlue = totalCount * 8
-  const totalGreen = level8.combinations.reduce((sum, combo) => sum + combo.green * combo.count, 0)
+  const totalClaimCount = level8.total_claim_count
+  const totalGold = level8.total_gold
+  const totalPurple = level8.total_purple
+  const totalBlue = level8.total_blue
+  const totalGreen = level8.total_green
 
-  const avgGold = totalCount > 0 ? totalGold / totalCount : 0
-  const avgPurple = totalCount > 0 ? totalPurple / totalCount : 0
-  const avgBlue = totalCount > 0 ? totalBlue / totalCount : 0
-  const avgGreen = totalCount > 0 ? totalGreen / totalCount : 0
+  const avgGold = totalClaimCount > 0 ? totalGold / totalClaimCount : 0
+  const avgPurple = totalClaimCount > 0 ? totalPurple / totalClaimCount : 0
+  const avgBlue = totalClaimCount > 0 ? totalBlue / totalClaimCount : 0
+  const avgGreen = totalClaimCount > 0 ? totalGreen / totalClaimCount : 0
 
   const combinedGold = avgGold + avgPurple / 3 + avgBlue / 9 + avgGreen / 27
   const combinedPurple = avgPurple + avgBlue / 3 + avgGreen / 9
@@ -101,6 +103,7 @@ const level8Summary = computed(() => {
 
   return {
     totalCount,
+    totalClaimCount,
     totalGold,
     totalPurple,
     totalBlue,

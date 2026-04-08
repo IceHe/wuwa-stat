@@ -62,6 +62,7 @@ func EnsureSchema(ctx context.Context, database *sql.DB) error {
 			date DATE NOT NULL,
 			player_id TEXT NOT NULL,
 			sola_level INTEGER NOT NULL DEFAULT 8,
+			claim_count INTEGER NOT NULL DEFAULT 1,
 			gold INTEGER NOT NULL DEFAULT 0,
 			purple INTEGER NOT NULL DEFAULT 0,
 			blue INTEGER NOT NULL DEFAULT 0,
@@ -89,6 +90,9 @@ func EnsureSchema(ctx context.Context, database *sql.DB) error {
 		return err
 	}
 	if err := ensureCreatedByUserIDColumn(ctx, database, "resonance_records"); err != nil {
+		return err
+	}
+	if err := ensureClaimCountColumn(ctx, database, "resonance_records"); err != nil {
 		return err
 	}
 
@@ -186,6 +190,31 @@ func ensureCreatedByUserIDColumn(ctx context.Context, database *sql.DB, table st
 	return err
 }
 
+func ensureClaimCountColumn(ctx context.Context, database *sql.DB, table string) error {
+	var columnExists bool
+	if err := database.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = 'public'
+			  AND table_name = $1
+			  AND column_name = 'claim_count'
+		)
+	`, table).Scan(&columnExists); err != nil {
+		return err
+	}
+
+	if columnExists {
+		return nil
+	}
+
+	_, err := database.ExecContext(ctx, fmt.Sprintf(`
+		ALTER TABLE %s
+		ADD COLUMN claim_count INTEGER NOT NULL DEFAULT 1
+	`, table))
+	return err
+}
+
 func PrintSchemaSummary() {
 	fmt.Println("表结构：")
 	fmt.Println("- 表名: tacet_records")
@@ -193,5 +222,5 @@ func PrintSchemaSummary() {
 	fmt.Println("- 表名: ascension_records")
 	fmt.Println("- 字段: id, date, player_id, sola_level, drop_count, created_by_user_id, created_at")
 	fmt.Println("- 表名: resonance_records")
-	fmt.Println("- 字段: id, date, player_id, sola_level, gold, purple, blue, green, created_by_user_id, created_at")
+	fmt.Println("- 字段: id, date, player_id, sola_level, claim_count, gold, purple, blue, green, created_by_user_id, created_at")
 }

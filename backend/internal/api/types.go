@@ -113,13 +113,14 @@ type ascensionDetailedStatsResponse struct {
 }
 
 type resonanceRecordInput struct {
-	Date      string `json:"date"`
-	PlayerID  string `json:"player_id"`
-	SolaLevel int    `json:"sola_level"`
-	Gold      int    `json:"gold"`
-	Purple    int    `json:"purple"`
-	Blue      int    `json:"blue"`
-	Green     int    `json:"green"`
+	Date       string `json:"date"`
+	PlayerID   string `json:"player_id"`
+	SolaLevel  int    `json:"sola_level"`
+	ClaimCount int    `json:"claim_count"`
+	Gold       int    `json:"gold"`
+	Purple     int    `json:"purple"`
+	Blue       int    `json:"blue"`
+	Green      int    `json:"green"`
 }
 
 type resonanceBatchCreate struct {
@@ -131,6 +132,7 @@ type resonanceRecordResponse struct {
 	Date            string    `json:"date"`
 	PlayerID        string    `json:"player_id"`
 	SolaLevel       int       `json:"sola_level"`
+	ClaimCount      int       `json:"claim_count"`
 	Gold            int       `json:"gold"`
 	Purple          int       `json:"purple"`
 	Blue            int       `json:"blue"`
@@ -140,6 +142,7 @@ type resonanceRecordResponse struct {
 }
 
 type resonanceDropCombination struct {
+	ClaimCount int     `json:"claim_count"`
 	Gold       int     `json:"gold"`
 	Purple     int     `json:"purple"`
 	Blue       int     `json:"blue"`
@@ -149,13 +152,18 @@ type resonanceDropCombination struct {
 }
 
 type resonanceSolaLevelStats struct {
-	SolaLevel    int                        `json:"sola_level"`
-	Combinations []resonanceDropCombination `json:"combinations"`
-	TotalCount   int                        `json:"total_count"`
-	AvgGold      float64                    `json:"avg_gold"`
-	AvgPurple    float64                    `json:"avg_purple"`
-	AvgBlue      float64                    `json:"avg_blue"`
-	AvgGreen     float64                    `json:"avg_green"`
+	SolaLevel       int                        `json:"sola_level"`
+	Combinations    []resonanceDropCombination `json:"combinations"`
+	TotalCount      int                        `json:"total_count"`
+	TotalClaimCount int                        `json:"total_claim_count"`
+	TotalGold       int                        `json:"total_gold"`
+	TotalPurple     int                        `json:"total_purple"`
+	TotalBlue       int                        `json:"total_blue"`
+	TotalGreen      int                        `json:"total_green"`
+	AvgGold         float64                    `json:"avg_gold"`
+	AvgPurple       float64                    `json:"avg_purple"`
+	AvgBlue         float64                    `json:"avg_blue"`
+	AvgGreen        float64                    `json:"avg_green"`
 }
 
 type resonanceDetailedStatsResponse struct {

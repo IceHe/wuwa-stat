@@ -30,11 +30,10 @@
     │   ├── App.vue       # 三个统计标签页入口
     │   ├── components/   # 录入、列表、统计组件
     │   └── api/          # API 调用与鉴权状态
-    └── package.json
+	└── package.json
 ```
 
 说明：项目只有顶层 `frontend/` 这一个前端工程。
-原 Python 实现仍保留在 `backend/app/` 作为迁移对照，不再作为默认运行后端，也不应再作为生产 systemd 服务入口。
 
 ## 快速开始
 

@@ -15,7 +15,7 @@ Use "鸣潮统计网页工具" as the short product name in user-facing docs.
 
 ## Technology Stack
 
-- **Backend**: FastAPI + SQLAlchemy + PostgreSQL
+- **Backend**: Go + net/http + database/sql + PostgreSQL
 - **Frontend**: Vue 3 + TypeScript + Element Plus + Vite
 - **Auth**: external token validation service
 
@@ -26,14 +26,11 @@ Use "鸣潮统计网页工具" as the short product name in user-facing docs.
 ```bash
 cd backend
 
-# Install dependencies
-pip install -r requirements.txt
-
 # Initialize database (creates tables)
-python init_db.py
+go run ./cmd/initdb
 
 # Start development server
-uvicorn app.main:app --reload --port 8000
+go run ./cmd/server
 ```
 
 ### Frontend
@@ -60,15 +57,13 @@ npm run build
 
 ```text
 backend/
-├── app/
-│   ├── main.py         # FastAPI app entry point, OpenAPI metadata, CORS
-│   ├── models.py       # SQLAlchemy models for tacet/ascension/resonance
-│   ├── schemas.py      # Pydantic request/response schemas
-│   ├── database.py     # Database config, SessionLocal, settings
-│   ├── auth.py         # External auth service integration
-│   └── api/
-│       └── routes.py   # API endpoints for all three modules
-├── init_db.py          # Database initialization script
+├── cmd/
+│   ├── server/         # HTTP service entrypoint
+│   └── initdb/         # Database initialization entrypoint
+├── internal/
+│   ├── api/            # HTTP handlers, auth, request/response types
+│   ├── config/         # .env loading
+│   └── db/             # DB connection and schema management
 └── .env                # Runtime configuration
 ```
 

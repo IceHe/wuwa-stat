@@ -104,6 +104,7 @@ export interface ResonanceRecord {
   date: string
   player_id: string
   sola_level: number
+  claim_count: 1 | 2
   gold: number
   purple: number
   blue: number
@@ -120,6 +121,7 @@ export interface ResonanceRecordsResponse {
 }
 
 export interface ResonanceDropCombination {
+  claim_count: number
   gold: number
   purple: number
   blue: number
@@ -132,6 +134,11 @@ export interface ResonanceSolaLevelStats {
   sola_level: number
   combinations: ResonanceDropCombination[]
   total_count: number
+  total_claim_count: number
+  total_gold: number
+  total_purple: number
+  total_blue: number
+  total_green: number
   avg_gold: number
   avg_purple: number
   avg_blue: number

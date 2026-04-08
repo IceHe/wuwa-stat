@@ -36,89 +36,88 @@
             v-for="level in solaLevels"
             :key="level"
             :type="form.sola_level === level ? 'primary' : 'default'"
-            @click="form.sola_level = level"
+            @click="form.sola_level !== level && ((form.sola_level = level), handleLevelChange())"
           >
             等级 {{ level }}
           </el-button>
         </div>
       </el-form-item>
 
+      <el-form-item label="领取次数">
+        <div class="option-button-group">
+          <el-button
+            :type="form.claim_count === 1 ? 'primary' : 'default'"
+            @click="handleClaimCountChange(1)"
+          >
+            1次领取
+          </el-button>
+          <el-button
+            :type="form.claim_count === 2 ? 'primary' : 'default'"
+            @click="handleClaimCountChange(2)"
+          >
+            2次领取
+          </el-button>
+        </div>
+      </el-form-item>
+
+      <el-form-item label="掉落组合">
+        <div class="option-button-group" v-if="availableCombos.length > 0">
+          <el-button
+            v-for="combo in availableCombos"
+            :key="combo.key"
+            :type="selectedComboKey === combo.key ? 'primary' : 'default'"
+            @click="selectedComboKey !== combo.key && ((selectedComboKey = combo.key), handleComboChange())"
+          >
+            <span class="material-gold">金{{ combo.gold }}</span>
+            <span> </span>
+            <span class="material-purple">紫{{ combo.purple }}</span>
+            <span> </span>
+            <span class="material-blue">蓝{{ combo.blue }}</span>
+            <span> </span>
+            <span class="material-green">绿{{ combo.green }}</span>
+          </el-button>
+        </div>
+        <div v-else class="exp-hint">
+          当前索拉等级暂无可选组合，请手动补录数据后再使用组合快捷录入。
+        </div>
+        <div class="combo-hint" v-if="currentCombo">
+          <span class="material-gold">金{{ currentCombo.gold }}</span>
+          <span> </span>
+          <span class="material-purple">紫{{ currentCombo.purple }}</span>
+          <span> </span>
+          <span class="material-blue">蓝{{ currentCombo.blue }}</span>
+          <span> </span>
+          <span class="material-green">绿{{ currentCombo.green }}</span>
+        </div>
+        <div class="exp-hint" v-if="currentCombo">
+          {{ form.claim_count === 1 ? '单次领取组合' : '两次领取合并后的组合' }}
+        </div>
+      </el-form-item>
+
       <el-form-item label="金" class="material-item-gold">
-        <template v-if="goldOptions.length > 0">
-          <div class="option-button-group">
-            <el-button
-              v-for="value in goldOptions"
-              :key="`gold-${value}`"
-              :type="form.gold === value ? 'primary' : 'default'"
-              @click="form.gold = value"
-            >
-              {{ value }}
-            </el-button>
-          </div>
-        </template>
-        <el-input-number v-else v-model="form.gold" :min="0" />
+        <el-input-number v-model="form.gold" :min="0" :disabled="availableCombos.length > 0" />
       </el-form-item>
 
       <el-form-item label="紫" class="material-item-purple">
-        <template v-if="purpleOptions.length > 0">
-          <div class="option-button-group">
-            <el-button
-              v-for="value in purpleOptions"
-              :key="`purple-${value}`"
-              :type="form.purple === value ? 'primary' : 'default'"
-              @click="form.purple = value"
-            >
-              {{ value }}
-            </el-button>
-          </div>
-        </template>
-        <el-input-number v-else v-model="form.purple" :min="0" />
+        <el-input-number v-model="form.purple" :min="0" :disabled="availableCombos.length > 0" />
       </el-form-item>
 
       <el-form-item label="蓝" class="material-item-blue">
-        <template v-if="blueOptions.length > 0">
-          <div class="option-button-group">
-            <el-button
-              v-for="value in blueOptions"
-              :key="`blue-${value}`"
-              :type="form.blue === value ? 'primary' : 'default'"
-              @click="form.blue = value"
-            >
-              {{ value }}
-            </el-button>
-          </div>
-        </template>
-        <el-input-number v-else v-model="form.blue" :min="0" />
+        <el-input-number v-model="form.blue" :min="0" :disabled="availableCombos.length > 0" />
       </el-form-item>
 
       <el-form-item label="绿" class="material-item-green">
-        <template v-if="greenOptions.length > 0">
-          <div class="option-button-group">
-            <el-button
-              v-for="value in greenOptions"
-              :key="`green-${value}`"
-              :type="form.green === value ? 'primary' : 'default'"
-              @click="form.green = value"
-            >
-              {{ value }}
-            </el-button>
-          </div>
-        </template>
-        <el-input-number v-else v-model="form.green" :min="0" />
+        <el-input-number v-model="form.green" :min="0" :disabled="availableCombos.length > 0" />
       </el-form-item>
 
-      <el-form-item v-if="presetHint" label="预设范围">
-        <el-text type="info" size="small">{{ presetHint }}</el-text>
-      </el-form-item>
-
-      <el-form-item label="录入次数">
+      <el-form-item label="录入条数">
         <el-input-number
           v-model="form.count"
           :min="1"
           :max="10"
         />
         <el-text type="info" size="small" style="margin-left: 10px">
-          相同数据录入多次（例如双倍领取）
+          仅用于连续录入多条完全相同的记录
         </el-text>
       </el-form-item>
 
@@ -133,7 +132,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { resonanceApi } from '../api'
 
@@ -202,6 +201,7 @@ const form = reactive({
   date: getDefaultGameDate(),
   player_id: '',
   sola_level: 8,
+  claim_count: 1 as ClaimCount,
   gold: 0,
   purple: 0,
   blue: 0,
@@ -209,102 +209,182 @@ const form = reactive({
   count: 1
 })
 
-type ResonanceDropPreset = {
-  gold: number[]
-  purple: number[]
-  blue: number[]
-  green: number[]
+type ClaimCount = 1 | 2
+
+type ResonanceDropCombination = {
+  claim_count: number
+  gold: number
+  purple: number
+  blue: number
+  green: number
+  count?: number
 }
 
-const dropPresetsByLevel = ref<Record<number, ResonanceDropPreset>>({})
-
-const getSolaPreset = (level: number): ResonanceDropPreset => {
-  return dropPresetsByLevel.value[level] || { gold: [], purple: [], blue: [], green: [] }
+type ResonanceCombo = {
+  key: string
+  gold: number
+  purple: number
+  blue: number
+  green: number
+  count?: number
 }
 
-const goldOptions = computed(() => getSolaPreset(form.sola_level).gold)
-const purpleOptions = computed(() => getSolaPreset(form.sola_level).purple)
-const blueOptions = computed(() => getSolaPreset(form.sola_level).blue)
-const greenOptions = computed(() => getSolaPreset(form.sola_level).green)
+const selectedComboKey = ref('')
 
-const formatOptionHint = (label: string, options: number[]) => {
-  if (options.length === 0) return ''
-  if (options.length === 1) return `${label}${options[0]}`
-  const isContinuous = options.every((value, index) => index === 0 || value === options[index - 1] + 1)
-  if (isContinuous) {
-    return `${label}${options[0]}~${options[options.length - 1]}`
-  }
-  return `${label}${options.join('/')}`
+const combosByLevel = ref<Record<number, Record<ClaimCount, ResonanceCombo[]>>>({})
+
+const buildComboKey = (combo: Pick<ResonanceCombo, 'gold' | 'purple' | 'blue' | 'green'>) => {
+  return [combo.gold, combo.purple, combo.blue, combo.green].join('-')
 }
 
-const presetHint = computed(() => {
-  const parts = [
-    formatOptionHint('金', goldOptions.value),
-    formatOptionHint('紫', purpleOptions.value),
-    formatOptionHint('蓝', blueOptions.value),
-    formatOptionHint('绿', greenOptions.value)
-  ].filter(Boolean)
+const sortCombos = (combos: ResonanceCombo[]) => {
+  return [...combos].sort((left, right) => {
+    if ((right.count || 0) !== (left.count || 0)) {
+      return (right.count || 0) - (left.count || 0)
+    }
+    if (right.gold !== left.gold) return right.gold - left.gold
+    if (right.purple !== left.purple) return right.purple - left.purple
+    if (right.blue !== left.blue) return right.blue - left.blue
+    return right.green - left.green
+  })
+}
 
-  return parts.length > 0 ? `索拉等级 ${form.sola_level}：${parts.join('，')}` : ''
+const availableCombos = computed(() => combosByLevel.value[form.sola_level]?.[form.claim_count] || [])
+
+const currentCombo = computed(() => {
+  return availableCombos.value.find((combo) => combo.key === selectedComboKey.value) || null
 })
 
-const applySolaLevelPreset = () => {
-  if (goldOptions.value.length > 0 && !goldOptions.value.includes(form.gold)) {
-    form.gold = goldOptions.value[0]
-  }
-  if (purpleOptions.value.length > 0 && !purpleOptions.value.includes(form.purple)) {
-    form.purple = purpleOptions.value[0]
-  }
-  if (blueOptions.value.length > 0 && !blueOptions.value.includes(form.blue)) {
-    form.blue = blueOptions.value[0]
-  }
-  if (greenOptions.value.length > 0 && !greenOptions.value.includes(form.green)) {
-    form.green = greenOptions.value[0]
-  }
+const buildDoubleCombinations = (singleClaimCombos: ResonanceDropCombination[]) => {
+  const combinationMap = new Map<string, ResonanceCombo>()
+
+  singleClaimCombos.forEach((leftCombo) => {
+    singleClaimCombos.forEach((rightCombo) => {
+      const combo: ResonanceCombo = {
+        key: '',
+        gold: leftCombo.gold + rightCombo.gold,
+        purple: leftCombo.purple + rightCombo.purple,
+        blue: leftCombo.blue + rightCombo.blue,
+        green: leftCombo.green + rightCombo.green
+      }
+      const key = buildComboKey(combo)
+      combo.key = key
+
+      if (!combinationMap.has(key)) {
+        combinationMap.set(key, combo)
+      }
+    })
+  })
+
+  return sortCombos(Array.from(combinationMap.values()))
 }
 
-watch(
-  () => form.sola_level,
-  () => {
-    applySolaLevelPreset()
-  },
-  { immediate: true }
-)
+const buildCombos = (combinations: ResonanceDropCombination[]) => {
+  const comboMap = new Map<string, ResonanceCombo>()
 
-const buildPresetValues = (values: number[]) => {
-  return Array.from(new Set(values)).sort((a, b) => a - b)
+  combinations.forEach((combo) => {
+    const key = buildComboKey(combo)
+    const existing = comboMap.get(key)
+    if (existing) {
+      existing.count = (existing.count || 0) + (combo.count || 0)
+      return
+    }
+    comboMap.set(key, {
+      key,
+      gold: combo.gold,
+      purple: combo.purple,
+      blue: combo.blue,
+      green: combo.green,
+      count: combo.count || 0
+    })
+  })
+
+  return sortCombos(Array.from(comboMap.values()))
 }
 
-const applyPresetOverrides = (level: number, preset: ResonanceDropPreset): ResonanceDropPreset => {
+const applyLevelComboOverrides = (level: number, claimCount: ClaimCount, combos: ResonanceCombo[]) => {
   if (level === 8) {
-    return {
-      ...preset,
-      blue: [8]
+    const requiredBlue = claimCount === 1 ? 8 : 16
+    const filteredCombos = combos.filter((combo) => combo.blue === requiredBlue)
+    if (filteredCombos.length > 0) {
+      return filteredCombos
     }
   }
-  return preset
+
+  return combos
+}
+
+const getDefaultComboKey = (level: number, claimCount: ClaimCount) => {
+  const combos = combosByLevel.value[level]?.[claimCount] || []
+  return combos[0]?.key || ''
+}
+
+const applyComboToForm = () => {
+  const combo = currentCombo.value || availableCombos.value[0]
+  if (!combo) {
+    form.gold = 0
+    form.purple = 0
+    form.blue = 0
+    form.green = 0
+    return
+  }
+
+  if (selectedComboKey.value !== combo.key) {
+    selectedComboKey.value = combo.key
+  }
+
+  form.gold = combo.gold
+  form.purple = combo.purple
+  form.blue = combo.blue
+  form.green = combo.green
+}
+
+const handleLevelChange = () => {
+  selectedComboKey.value = getDefaultComboKey(form.sola_level, form.claim_count)
+  applyComboToForm()
+}
+
+const handleComboChange = () => {
+  applyComboToForm()
 }
 
 const loadDropPresetsFromData = async () => {
   try {
     const response = await resonanceApi.getDetailedStats()
     const levelStats = response.data.level_stats || []
-    const presets: Record<number, ResonanceDropPreset> = {}
+    const nextCombosByLevel: Record<number, Record<ClaimCount, ResonanceCombo[]>> = {}
 
     levelStats.forEach((levelStat) => {
       const combinations = levelStat.combinations || []
-      const rawPreset: ResonanceDropPreset = {
-        gold: buildPresetValues(combinations.map((combo) => combo.gold)),
-        purple: buildPresetValues(combinations.map((combo) => combo.purple)),
-        blue: buildPresetValues(combinations.map((combo) => combo.blue)),
-        green: buildPresetValues(combinations.map((combo) => combo.green))
-      }
+      const singleClaimCombos = combinations.filter((combo) => combo.claim_count === 1)
+      const doubleClaimCombos = combinations.filter((combo) => combo.claim_count === 2)
+      const singleCombos = buildCombos(singleClaimCombos)
+      const explicitDoubleCombos = buildCombos(doubleClaimCombos)
+      const inferredDoubleCombos = buildDoubleCombinations(singleClaimCombos)
+      const mergedDoubleCombos = buildCombos([
+        ...doubleClaimCombos,
+        ...inferredDoubleCombos.map((combo) => ({
+          claim_count: 2,
+          gold: combo.gold,
+          purple: combo.purple,
+          blue: combo.blue,
+          green: combo.green,
+          count: combo.count || 0
+        }))
+      ])
 
-      presets[levelStat.sola_level] = applyPresetOverrides(levelStat.sola_level, rawPreset)
+      nextCombosByLevel[levelStat.sola_level] = {
+        1: applyLevelComboOverrides(levelStat.sola_level, 1, singleCombos),
+        2: applyLevelComboOverrides(
+          levelStat.sola_level,
+          2,
+          mergedDoubleCombos.length > 0 ? mergedDoubleCombos : explicitDoubleCombos
+        )
+      }
     })
 
-    dropPresetsByLevel.value = presets
-    applySolaLevelPreset()
+    combosByLevel.value = nextCombosByLevel
+    handleLevelChange()
   } catch (error) {
     console.error('加载凝素领域预设失败:', error)
   }
@@ -312,6 +392,15 @@ const loadDropPresetsFromData = async () => {
 
 const handleDateChange = () => {
   isDateManuallyEdited.value = true
+}
+
+const handleClaimCountChange = (claimCount: ClaimCount) => {
+  if (form.claim_count === claimCount) {
+    return
+  }
+  form.claim_count = claimCount
+  selectedComboKey.value = getDefaultComboKey(form.sola_level, form.claim_count)
+  applyComboToForm()
 }
 
 const handleSubmit = async () => {
@@ -326,6 +415,7 @@ const handleSubmit = async () => {
       date: form.date,
       player_id: form.player_id,
       sola_level: form.sola_level,
+      claim_count: form.claim_count,
       gold: form.gold,
       purple: form.purple,
       blue: form.blue,
@@ -386,15 +476,14 @@ const handleReset = () => {
   form.date = getDefaultGameDate()
   isDateManuallyEdited.value = false
   form.sola_level = 8
-  form.gold = 0
-  form.purple = 0
-  form.blue = 0
-  form.green = 0
-  applySolaLevelPreset()
+  form.claim_count = 1
+  selectedComboKey.value = getDefaultComboKey(form.sola_level, form.claim_count)
+  applyComboToForm()
   form.count = 1
 }
 
 onMounted(async () => {
+  handleLevelChange()
   scheduleGameDateRefresh()
   loadPlayerIds()
   await Promise.all([
@@ -422,6 +511,37 @@ onBeforeUnmount(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.combo-hint {
+  margin-left: 12px;
+  font-size: 13px;
+}
+
+.exp-hint {
+  margin-left: 12px;
+  color: #606266;
+  font-size: 13px;
+}
+
+.material-gold {
+  color: #b8860b;
+  font-weight: 600;
+}
+
+.material-purple {
+  color: #7d3c98;
+  font-weight: 600;
+}
+
+.material-blue {
+  color: #1f78ff;
+  font-weight: 600;
+}
+
+.material-green {
+  color: #2e8b57;
+  font-weight: 600;
 }
 
 :deep(.material-item-gold .el-form-item__label),
