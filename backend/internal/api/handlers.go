@@ -944,18 +944,18 @@ func (a *API) handleResonanceDetailedStats(w http.ResponseWriter, r *http.Reques
 		}
 		sort.Slice(entries, func(i, j int) bool {
 			if entries[i].ClaimCount != entries[j].ClaimCount {
-				return entries[i].ClaimCount > entries[j].ClaimCount
+				return entries[i].ClaimCount < entries[j].ClaimCount
 			}
 			if entries[i].Gold != entries[j].Gold {
-				return entries[i].Gold > entries[j].Gold
+				return entries[i].Gold < entries[j].Gold
 			}
 			if entries[i].Purple != entries[j].Purple {
-				return entries[i].Purple > entries[j].Purple
+				return entries[i].Purple < entries[j].Purple
 			}
 			if entries[i].Blue != entries[j].Blue {
-				return entries[i].Blue > entries[j].Blue
+				return entries[i].Blue < entries[j].Blue
 			}
-			return entries[i].Green > entries[j].Green
+			return entries[i].Green < entries[j].Green
 		})
 
 		totalCount := 0
