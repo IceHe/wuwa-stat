@@ -2,10 +2,9 @@ package api
 
 import (
 	"context"
-	"fmt"
+	"database/sql"
 	"net/http"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -81,69 +80,23 @@ func (a *API) createResonanceRecords(w http.ResponseWriter, r *http.Request, aut
 }
 
 func (a *API) getResonanceRecords(w http.ResponseWriter, r *http.Request, _ authContext) {
-	playerID := strings.TrimSpace(r.URL.Query().Get("player_id"))
-	startDate := strings.TrimSpace(r.URL.Query().Get("start_date"))
-	endDate := strings.TrimSpace(r.URL.Query().Get("end_date"))
-	solaLevel, err := parseOptionalInt(r.URL.Query().Get("sola_level"))
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "sola_level 参数无效")
-		return
-	}
-	skip, err := parseIntWithDefault(r.URL.Query().Get("skip"), 0)
-	if err != nil || skip < 0 {
-		writeError(w, http.StatusBadRequest, "skip 参数无效")
-		return
-	}
-	limit, err := parseIntWithDefault(r.URL.Query().Get("limit"), 20)
-	if err != nil || limit < 1 || limit > 1000 {
-		writeError(w, http.StatusBadRequest, "limit 参数无效")
-		return
-	}
-
-	builder, err := buildCommonFilters(playerID, startDate, endDate, solaLevel)
+	params, err := buildListQueryParams(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-
-	totalQuery := "SELECT COUNT(*) FROM resonance_records" + builder.whereClause()
-	var total int
-	if err := a.db.QueryRowContext(ctx, totalQuery, builder.args...).Scan(&total); err != nil {
-		writeError(w, http.StatusInternalServerError, "数据库操作失败")
-		return
-	}
-
-	dataQuery := "SELECT id, date::text, player_id, sola_level, claim_count, gold, purple, blue, green, created_by_user_id, created_at FROM resonance_records" +
-		builder.whereClause() +
-		fmt.Sprintf(" ORDER BY created_at DESC, id DESC OFFSET $%d LIMIT $%d", len(builder.args)+1, len(builder.args)+2)
-	args := append(append([]any{}, builder.args...), skip, limit)
-
-	rows, err := a.db.QueryContext(ctx, dataQuery, args...)
+	response, err := queryListRecords(r.Context(), a.db, "resonance_records", "id, date::text, player_id, sola_level, claim_count, gold, purple, blue, green, created_by_user_id, created_at", params, func(rows *sql.Rows) (resonanceRecordResponse, error) {
+		var record resonanceRecordResponse
+		err := rows.Scan(&record.ID, &record.Date, &record.PlayerID, &record.SolaLevel, &record.ClaimCount, &record.Gold, &record.Purple, &record.Blue, &record.Green, &record.CreatedByUserID, &record.CreatedAt)
+		return record, err
+	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "数据库操作失败")
 		return
 	}
-	defer rows.Close()
 
-	var records []resonanceRecordResponse
-	for rows.Next() {
-		var record resonanceRecordResponse
-		if err := rows.Scan(&record.ID, &record.Date, &record.PlayerID, &record.SolaLevel, &record.ClaimCount, &record.Gold, &record.Purple, &record.Blue, &record.Green, &record.CreatedByUserID, &record.CreatedAt); err != nil {
-			writeError(w, http.StatusInternalServerError, "数据库操作失败")
-			return
-		}
-		records = append(records, record)
-	}
-
-	writeJSON(w, http.StatusOK, listResponse[resonanceRecordResponse]{
-		Data:        records,
-		Total:       total,
-		PageSize:    limit,
-		CurrentPage: skip/limit + 1,
-	})
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (a *API) handleResonanceDetailedStats(w http.ResponseWriter, r *http.Request, _ authContext) {
@@ -152,11 +105,7 @@ func (a *API) handleResonanceDetailedStats(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	playerID := strings.TrimSpace(r.URL.Query().Get("player_id"))
-	startDate := strings.TrimSpace(r.URL.Query().Get("start_date"))
-	endDate := strings.TrimSpace(r.URL.Query().Get("end_date"))
-
-	builder, err := buildCommonFilters(playerID, startDate, endDate, nil)
+	builder, err := buildFilterBuilderFromRequest(r, false)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

@@ -2,10 +2,9 @@ package api
 
 import (
 	"context"
-	"fmt"
+	"database/sql"
 	"net/http"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -81,69 +80,23 @@ func (a *API) createAscensionRecords(w http.ResponseWriter, r *http.Request, aut
 }
 
 func (a *API) getAscensionRecords(w http.ResponseWriter, r *http.Request, _ authContext) {
-	playerID := strings.TrimSpace(r.URL.Query().Get("player_id"))
-	startDate := strings.TrimSpace(r.URL.Query().Get("start_date"))
-	endDate := strings.TrimSpace(r.URL.Query().Get("end_date"))
-	solaLevel, err := parseOptionalInt(r.URL.Query().Get("sola_level"))
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "sola_level 参数无效")
-		return
-	}
-	skip, err := parseIntWithDefault(r.URL.Query().Get("skip"), 0)
-	if err != nil || skip < 0 {
-		writeError(w, http.StatusBadRequest, "skip 参数无效")
-		return
-	}
-	limit, err := parseIntWithDefault(r.URL.Query().Get("limit"), 20)
-	if err != nil || limit < 1 || limit > 1000 {
-		writeError(w, http.StatusBadRequest, "limit 参数无效")
-		return
-	}
-
-	builder, err := buildCommonFilters(playerID, startDate, endDate, solaLevel)
+	params, err := buildListQueryParams(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-
-	totalQuery := "SELECT COUNT(*) FROM ascension_records" + builder.whereClause()
-	var total int
-	if err := a.db.QueryRowContext(ctx, totalQuery, builder.args...).Scan(&total); err != nil {
-		writeError(w, http.StatusInternalServerError, "数据库操作失败")
-		return
-	}
-
-	dataQuery := "SELECT id, date::text, player_id, sola_level, drop_count, created_by_user_id, created_at FROM ascension_records" +
-		builder.whereClause() +
-		fmt.Sprintf(" ORDER BY created_at DESC, id DESC OFFSET $%d LIMIT $%d", len(builder.args)+1, len(builder.args)+2)
-	args := append(append([]any{}, builder.args...), skip, limit)
-
-	rows, err := a.db.QueryContext(ctx, dataQuery, args...)
+	response, err := queryListRecords(r.Context(), a.db, "ascension_records", "id, date::text, player_id, sola_level, drop_count, created_by_user_id, created_at", params, func(rows *sql.Rows) (ascensionRecordResponse, error) {
+		var record ascensionRecordResponse
+		err := rows.Scan(&record.ID, &record.Date, &record.PlayerID, &record.SolaLevel, &record.DropCount, &record.CreatedByUserID, &record.CreatedAt)
+		return record, err
+	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "数据库操作失败")
 		return
 	}
-	defer rows.Close()
 
-	var records []ascensionRecordResponse
-	for rows.Next() {
-		var record ascensionRecordResponse
-		if err := rows.Scan(&record.ID, &record.Date, &record.PlayerID, &record.SolaLevel, &record.DropCount, &record.CreatedByUserID, &record.CreatedAt); err != nil {
-			writeError(w, http.StatusInternalServerError, "数据库操作失败")
-			return
-		}
-		records = append(records, record)
-	}
-
-	writeJSON(w, http.StatusOK, listResponse[ascensionRecordResponse]{
-		Data:        records,
-		Total:       total,
-		PageSize:    limit,
-		CurrentPage: skip/limit + 1,
-	})
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (a *API) handleAscensionDetailedStats(w http.ResponseWriter, r *http.Request, _ authContext) {
@@ -152,11 +105,7 @@ func (a *API) handleAscensionDetailedStats(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	playerID := strings.TrimSpace(r.URL.Query().Get("player_id"))
-	startDate := strings.TrimSpace(r.URL.Query().Get("start_date"))
-	endDate := strings.TrimSpace(r.URL.Query().Get("end_date"))
-
-	builder, err := buildCommonFilters(playerID, startDate, endDate, nil)
+	builder, err := buildFilterBuilderFromRequest(r, false)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

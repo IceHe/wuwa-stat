@@ -70,6 +70,12 @@ type filterBuilder struct {
 	args    []any
 }
 
+type listQueryParams struct {
+	Filters filterBuilder
+	Skip    int
+	Limit   int
+}
+
 func buildCommonFilters(playerID, startDate, endDate string, solaLevel *int) (filterBuilder, error) {
 	// Build parameterized SQL conditions shared by list and stats APIs.
 	builder := filterBuilder{}
@@ -94,6 +100,91 @@ func buildCommonFilters(playerID, startDate, endDate string, solaLevel *int) (fi
 	}
 
 	return builder, nil
+}
+
+func buildFilterBuilderFromRequest(r *http.Request, includeSolaLevel bool) (filterBuilder, error) {
+	playerID := strings.TrimSpace(r.URL.Query().Get("player_id"))
+	startDate := strings.TrimSpace(r.URL.Query().Get("start_date"))
+	endDate := strings.TrimSpace(r.URL.Query().Get("end_date"))
+
+	var solaLevel *int
+	if includeSolaLevel {
+		parsedSolaLevel, err := parseOptionalInt(r.URL.Query().Get("sola_level"))
+		if err != nil {
+			return filterBuilder{}, fmt.Errorf("sola_level 参数无效")
+		}
+		solaLevel = parsedSolaLevel
+	}
+
+	return buildCommonFilters(playerID, startDate, endDate, solaLevel)
+}
+
+func buildListQueryParams(r *http.Request) (listQueryParams, error) {
+	filters, err := buildFilterBuilderFromRequest(r, true)
+	if err != nil {
+		return listQueryParams{}, err
+	}
+
+	skip, err := parseIntWithDefault(r.URL.Query().Get("skip"), 0)
+	if err != nil || skip < 0 {
+		return listQueryParams{}, fmt.Errorf("skip 参数无效")
+	}
+
+	limit, err := parseIntWithDefault(r.URL.Query().Get("limit"), 20)
+	if err != nil || limit < 1 || limit > 1000 {
+		return listQueryParams{}, fmt.Errorf("limit 参数无效")
+	}
+
+	return listQueryParams{
+		Filters: filters,
+		Skip:    skip,
+		Limit:   limit,
+	}, nil
+}
+
+func queryListRecords[T any](
+	ctx context.Context,
+	database *sql.DB,
+	table string,
+	selectColumns string,
+	params listQueryParams,
+	scan func(*sql.Rows) (T, error),
+) (listResponse[T], error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	totalQuery := "SELECT COUNT(*) FROM " + table + params.Filters.whereClause()
+	var total int
+	if err := database.QueryRowContext(ctx, totalQuery, params.Filters.args...).Scan(&total); err != nil {
+		return listResponse[T]{}, err
+	}
+
+	dataQuery := "SELECT " + selectColumns + " FROM " + table +
+		params.Filters.whereClause() +
+		fmt.Sprintf(" ORDER BY created_at DESC, id DESC OFFSET $%d LIMIT $%d", len(params.Filters.args)+1, len(params.Filters.args)+2)
+	args := append(append([]any{}, params.Filters.args...), params.Skip, params.Limit)
+
+	rows, err := database.QueryContext(ctx, dataQuery, args...)
+	if err != nil {
+		return listResponse[T]{}, err
+	}
+	defer rows.Close()
+
+	records := make([]T, 0, params.Limit)
+	for rows.Next() {
+		record, err := scan(rows)
+		if err != nil {
+			return listResponse[T]{}, err
+		}
+		records = append(records, record)
+	}
+
+	return listResponse[T]{
+		Data:        records,
+		Total:       total,
+		PageSize:    params.Limit,
+		CurrentPage: params.Skip/params.Limit + 1,
+	}, nil
 }
 
 func (b *filterBuilder) add(clause string, value any) {
