@@ -187,10 +187,11 @@ const handleSubmit = async () => {
 
   loading.value = true
   try {
+    const submittedSolaLevel = form.sola_level
     const records = Array(form.count).fill(null).map(() => ({
       date: form.date,
       player_id: form.player_id,
-      sola_level: form.sola_level,
+      sola_level: submittedSolaLevel,
       drop_count: form.drop_count
     }))
 
@@ -198,7 +199,7 @@ const handleSubmit = async () => {
     savePlayerId(form.player_id)
     ElMessage.success(`成功录入 ${form.count} 条记录`)
     emit('success')
-    handleReset()
+    resetForm(submittedSolaLevel)
   } catch (error) {
     ElMessage.error('录入失败: ' + (error as Error).message)
   } finally {
@@ -244,12 +245,16 @@ const loadLastPlayerId = async () => {
   }
 }
 
-const handleReset = () => {
+const resetForm = (solaLevel: number) => {
   form.date = getDefaultGameDate()
   isDateManuallyEdited.value = false
-  form.sola_level = 8
+  form.sola_level = solaLevel
   form.drop_count = getDefaultDropCount(form.sola_level)
   form.count = 1
+}
+
+const handleReset = () => {
+  resetForm(8)
 }
 
 onMounted(async () => {
