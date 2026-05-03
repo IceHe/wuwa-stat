@@ -60,17 +60,28 @@
         </div>
       </el-form-item>
 
-      <el-form-item label="掉落组合">
+      <el-form-item label="金色密音筒" class="material-item-gold">
         <div class="option-button-group">
           <el-button
-            v-for="combo in availableCombos"
-            :key="combo.key"
-            :type="selectedComboKey === combo.key ? 'primary' : 'default'"
-            @click="selectedComboKey !== combo.key && ((selectedComboKey = combo.key), handleComboChange())"
+            v-for="value in goldOptions"
+            :key="`gold-${value}`"
+            :type="form.gold_tubes === value ? 'primary' : 'default'"
+            @click="handleGoldChange(value)"
           >
-            <span class="material-gold">金{{ combo.gold }}</span>
-            <span> </span>
-            <span class="material-purple">紫{{ combo.purple }}</span>
+            {{ value }}
+          </el-button>
+        </div>
+      </el-form-item>
+
+      <el-form-item label="紫色密音筒" class="material-item-purple">
+        <div class="option-button-group">
+          <el-button
+            v-for="value in purpleOptions"
+            :key="`purple-${value}`"
+            :type="form.purple_tubes === value ? 'primary' : 'default'"
+            @click="handlePurpleChange(value)"
+          >
+            {{ value }}
           </el-button>
         </div>
         <div class="combo-hint" v-if="currentCombo">
@@ -79,19 +90,11 @@
           <span class="material-purple">紫{{ currentCombo.purple }}</span>
         </div>
         <div class="exp-hint">
-          {{ form.claim_count === 1 ? '单次领取组合' : '两次领取合并后的组合' }}
+          {{ form.claim_count === 1 ? '单次领取合法组合范围' : '两次领取合并后的合法组合范围' }}
         </div>
         <div class="exp-hint" v-if="currentCombo">
           声骸经验：{{ currentCombo.experience.toLocaleString() }}
         </div>
-      </el-form-item>
-
-      <el-form-item label="金色密音筒" class="material-item-gold">
-        <el-input-number v-model="form.gold_tubes" :min="0" disabled />
-      </el-form-item>
-
-      <el-form-item label="紫色密音筒" class="material-item-purple">
-        <el-input-number v-model="form.purple_tubes" :min="0" disabled />
       </el-form-item>
 
       <el-form-item>
@@ -211,19 +214,15 @@ type ClaimCount = 1 | 2
 
 type TacetCombo = {
   key: string
-  label: string
   gold: number
   purple: number
   experience: number
 }
 
-const selectedComboKey = ref('')
-
 const buildSingleCombos = (level: number): TacetCombo[] => {
   const combos = combosByLevel[level] || []
   return combos.map((combo) => ({
     key: `${combo.gold}-${combo.purple}`,
-    label: `金${combo.gold}|紫${combo.purple}`,
     ...combo
   }))
 }
@@ -240,7 +239,6 @@ const buildDoubleCombos = (level: number): TacetCombo[] => {
       if (!comboMap.has(key)) {
         comboMap.set(key, {
           key,
-          label: `金${gold}|紫${purple}`,
           gold,
           purple,
           experience: gold * 5000 + purple * 2000
@@ -250,10 +248,10 @@ const buildDoubleCombos = (level: number): TacetCombo[] => {
   })
 
   return Array.from(comboMap.values()).sort((a, b) => {
-    if (b.gold !== a.gold) {
-      return b.gold - a.gold
+    if (a.purple !== b.purple) {
+      return a.purple - b.purple
     }
-    return b.purple - a.purple
+    return a.gold - b.gold
   })
 }
 
@@ -264,41 +262,69 @@ const availableCombos = computed<TacetCombo[]>(() => {
 })
 
 const currentCombo = computed(() =>
-  availableCombos.value.find((combo) => combo.key === selectedComboKey.value) || null
+  availableCombos.value.find(
+    (combo) => combo.gold === form.gold_tubes && combo.purple === form.purple_tubes
+  ) || null
 )
 
-const getDefaultComboKey = (level: number, claimCount: ClaimCount) => {
+const getDefaultCombo = (level: number, claimCount: ClaimCount) => {
   const combos = claimCount === 1 ? buildSingleCombos(level) : buildDoubleCombos(level)
   if (level === 8) {
     if (claimCount === 1) {
       const preferred = combos.find((combo) => combo.gold === 3 && combo.purple === 4)
       if (preferred) {
-        return preferred.key
+        return preferred
       }
     } else {
-      const preferred = combos.find((combo) => combo.gold === 7 && combo.purple === 8)
+      const preferred = combos.find((combo) => combo.gold === 6 && combo.purple === 8)
       if (preferred) {
-        return preferred.key
+        return preferred
       }
     }
   }
-  return combos[0]?.key || ''
+  return combos[0] || null
 }
 
-const applyComboToForm = () => {
-  const combo = currentCombo.value || availableCombos.value[0]
-  if (combo) {
-    form.gold_tubes = combo.gold
-    form.purple_tubes = combo.purple
+const getUniqueSortedValues = (values: number[]) => Array.from(new Set(values)).sort((a, b) => a - b)
+
+const purpleOptions = computed(() => {
+  const combos = availableCombos.value
+  const combosForGold = combos.filter((combo) => combo.gold === form.gold_tubes)
+  const source = combosForGold.length > 0 ? combosForGold : combos
+  return getUniqueSortedValues(source.map((combo) => combo.purple))
+})
+
+const goldOptions = computed(() => {
+  const combos = availableCombos.value
+  const combosForPurple = combos.filter((combo) => combo.purple === form.purple_tubes)
+  const source = combosForPurple.length > 0 ? combosForPurple : combos
+  return getUniqueSortedValues(source.map((combo) => combo.gold))
+})
+
+const applyComboToForm = (combo?: TacetCombo | null) => {
+  const nextCombo = combo || currentCombo.value || availableCombos.value[0]
+  if (nextCombo) {
+    form.gold_tubes = nextCombo.gold
+    form.purple_tubes = nextCombo.purple
   } else {
     form.gold_tubes = 0
     form.purple_tubes = 0
   }
 }
 
+const ensureValidSelection = () => {
+  const combo = currentCombo.value
+  if (combo) {
+    form.gold_tubes = combo.gold
+    form.purple_tubes = combo.purple
+    return
+  }
+
+  applyComboToForm(getDefaultCombo(form.sola_level, form.claim_count))
+}
+
 const handleLevelChange = () => {
-  selectedComboKey.value = getDefaultComboKey(form.sola_level, form.claim_count)
-  applyComboToForm()
+  applyComboToForm(getDefaultCombo(form.sola_level, form.claim_count))
 }
 
 const handleClaimCountChange = (claimCount: ClaimCount) => {
@@ -306,12 +332,43 @@ const handleClaimCountChange = (claimCount: ClaimCount) => {
     return
   }
   form.claim_count = claimCount
-  selectedComboKey.value = getDefaultComboKey(form.sola_level, form.claim_count)
-  applyComboToForm()
+  applyComboToForm(getDefaultCombo(form.sola_level, form.claim_count))
 }
 
-const handleComboChange = () => {
-  applyComboToForm()
+const handleGoldChange = (value: number) => {
+  if (form.gold_tubes === value) {
+    return
+  }
+
+  form.gold_tubes = value
+  const matchingCombo = availableCombos.value.find(
+    (combo) => combo.gold === value && combo.purple === form.purple_tubes
+  )
+  if (matchingCombo) {
+    applyComboToForm(matchingCombo)
+    return
+  }
+
+  const fallbackCombo = availableCombos.value.find((combo) => combo.gold === value)
+  applyComboToForm(fallbackCombo)
+}
+
+const handlePurpleChange = (value: number) => {
+  if (form.purple_tubes === value) {
+    return
+  }
+
+  form.purple_tubes = value
+  const matchingCombo = availableCombos.value.find(
+    (combo) => combo.purple === value && combo.gold === form.gold_tubes
+  )
+  if (matchingCombo) {
+    applyComboToForm(matchingCombo)
+    return
+  }
+
+  const fallbackCombo = availableCombos.value.find((combo) => combo.purple === value)
+  applyComboToForm(fallbackCombo)
 }
 
 const handleDateChange = () => {
@@ -394,13 +451,12 @@ const handleReset = () => {
   isDateManuallyEdited.value = false
   form.sola_level = 8
   form.claim_count = 1
-  selectedComboKey.value = getDefaultComboKey(form.sola_level, form.claim_count)
-  applyComboToForm()
+  applyComboToForm(getDefaultCombo(form.sola_level, form.claim_count))
 }
 
 // 初始化
 onMounted(async () => {
-  handleLevelChange()
+  ensureValidSelection()
   scheduleGameDateRefresh()
   loadPlayerIds()
   await loadLastPlayerId()
