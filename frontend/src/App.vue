@@ -80,17 +80,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import TacetRecordInput from './components/TacetRecordInput.vue'
-import TacetRecordList from './components/TacetRecordList.vue'
-import TacetStatsView from './components/TacetStatsView.vue'
-import AscensionRecordInput from './components/AscensionRecordInput.vue'
-import AscensionRecordList from './components/AscensionRecordList.vue'
-import AscensionStatsView from './components/AscensionStatsView.vue'
-import ResonanceRecordInput from './components/ResonanceRecordInput.vue'
-import ResonanceRecordList from './components/ResonanceRecordList.vue'
-import ResonanceStatsView from './components/ResonanceStatsView.vue'
 import {
   authApi,
   authEvents,
@@ -100,6 +91,16 @@ import {
   type AuthMeResponse,
   type Permission
 } from './api'
+
+const TacetRecordInput = defineAsyncComponent(() => import('./components/TacetRecordInput.vue'))
+const TacetRecordList = defineAsyncComponent(() => import('./components/TacetRecordList.vue'))
+const TacetStatsView = defineAsyncComponent(() => import('./components/TacetStatsView.vue'))
+const AscensionRecordInput = defineAsyncComponent(() => import('./components/AscensionRecordInput.vue'))
+const AscensionRecordList = defineAsyncComponent(() => import('./components/AscensionRecordList.vue'))
+const AscensionStatsView = defineAsyncComponent(() => import('./components/AscensionStatsView.vue'))
+const ResonanceRecordInput = defineAsyncComponent(() => import('./components/ResonanceRecordInput.vue'))
+const ResonanceRecordList = defineAsyncComponent(() => import('./components/ResonanceRecordList.vue'))
+const ResonanceStatsView = defineAsyncComponent(() => import('./components/ResonanceStatsView.vue'))
 
 const activeTab = ref('tacet')
 const refreshTrigger = ref(0)
