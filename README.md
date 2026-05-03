@@ -93,6 +93,7 @@ npm run dev
 
 - 记录金色/紫色密音筒产出
 - 支持领取 1 次和领取 2 次录入
+- 录入时可分别选择金色/紫色密音筒数量，并按索拉等级、领取次数自动限制合法组合
 - 支持按玩家 ID、索拉等级、日期范围筛选
 - 提供基础统计和按索拉等级拆分的详细统计
 
@@ -126,8 +127,8 @@ npm run dev
 ### 后端开发
 
 - HTTP 入口位于 `backend/cmd/server/main.go`
-- 接口实现位于 `backend/internal/api/handlers.go`
-- 数据库初始化与补字段位于 `backend/internal/db/postgres.go`
+- 接口实现位于 `backend/internal/api/`
+- 数据库初始化与补字段位于 `backend/internal/db/`
 - 配置加载位于 `backend/internal/config/config.go`
 
 ### 前端开发
@@ -165,12 +166,38 @@ go build -o server ./cmd/server
 ### 前端部署
 
 ```bash
-cd frontend
+cd /root/wuwa/stat/frontend
 npm install
 npm run build
 ```
 
 将 `dist/` 目录部署到静态文件服务器即可。
+
+当前生产环境使用 nginx 托管静态文件，目录为 `/var/www/wuwa-stat`。
+
+重新部署前端时可直接执行：
+
+```bash
+cd /root/wuwa/stat/frontend
+npm run build
+rsync -a --delete dist/ /var/www/wuwa-stat/
+```
+
+如果 nginx 配置没有变更，通常不需要重启 nginx；静态文件同步后刷新页面即可。
+如果你同时改了 nginx 配置，再执行：
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+如果你同时改了 Go 后端，需要重新编译并重启 systemd 服务：
+
+```bash
+cd /root/wuwa/stat/backend
+go build -o server ./cmd/server
+sudo systemctl restart wuwa-stat-backend.service
+```
 
 ### 域名部署示例
 
@@ -178,6 +205,7 @@ npm run build
 - 推荐在前端域名下额外转发 `/api` 到后端，这样前端可继续使用相对路径请求接口
 - 后端 `.env` 中的 `FRONTEND_URL` 需要设置为 `https://stat.icehe.life`
 - 生产环境推荐使用 `npm run build` 生成 `dist/`，再由 nginx 直接托管静态文件，而不是长期运行 Vite 开发服务
+- 当前静态文件目录为 `/var/www/wuwa-stat`
 - systemd 后端服务建议直接执行 Go 二进制：`/root/wuwa/stat/backend/server`
 - 可直接复用仓库内模板：[deploy/systemd/wuwa-stat-backend.service](/root/wuwa/stat/deploy/systemd/wuwa-stat-backend.service)
 

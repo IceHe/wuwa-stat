@@ -58,6 +58,7 @@ npm run dev
 
 - 录入金色/紫色密音筒产出
 - 支持单次和双次领取
+- 金色/紫色密音筒分开选择，页面会按索拉等级和领取次数限制合法组合
 - 支持列表筛选、分页和统计分析
 
 ### 共鸣者突破材料统计
@@ -124,6 +125,37 @@ curl --noproxy '*' -H "Authorization: Bearer ${TOKEN}" "http://localhost:8000/ap
 
 - 停止后端：结束运行 `go run ./cmd/server` 的终端或进程
 - 停止前端：结束运行 `npm run dev` 的终端
+
+## 生产环境重新部署
+
+### 重新部署前端
+
+当前生产环境前端由 nginx 托管，静态目录为 `/var/www/wuwa-stat`。
+
+```bash
+cd /root/wuwa/stat/frontend
+npm run build
+rsync -a --delete dist/ /var/www/wuwa-stat/
+```
+
+如果只是前端代码变更，到这里通常就够了，刷新页面即可。
+只有在 nginx 配置变更时，才需要额外执行：
+
+```bash
+nginx -t
+systemctl reload nginx
+```
+
+### 重新部署后端
+
+当前生产环境后端常驻 service 为 `wuwa-stat-backend.service`。
+
+```bash
+cd /root/wuwa/stat/backend
+go build -o server ./cmd/server
+systemctl restart wuwa-stat-backend.service
+systemctl status --no-pager wuwa-stat-backend.service
+```
 
 ## systemd 部署说明
 
