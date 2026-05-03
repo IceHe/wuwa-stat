@@ -36,7 +36,7 @@
             v-for="level in solaLevels"
             :key="level"
             :type="form.sola_level === level ? 'primary' : 'default'"
-            @click="form.sola_level = level"
+            @click="handleLevelChange(level)"
           >
             等级 {{ level }}
           </el-button>
@@ -53,6 +53,7 @@
           </el-button>
           <el-button
             :type="form.claim_count === 2 ? 'primary' : 'default'"
+            :disabled="isClaimCountDisabled(2)"
             @click="handleClaimCountChange(2)"
           >
             2次领取
@@ -201,12 +202,14 @@ const form = reactive({
 
 type ClaimCount = 1 | 2
 
-const materialOptionsByClaimCount: Record<ClaimCount, {
+type MaterialOptions = {
   gold: number[]
   purple: number[]
   blue: number[]
   green: number[]
-}> = {
+}
+
+const defaultMaterialOptionsByClaimCount: Record<ClaimCount, MaterialOptions> = {
   1: {
     gold: [0, 1],
     purple: [1, 2],
@@ -221,10 +224,37 @@ const materialOptionsByClaimCount: Record<ClaimCount, {
   }
 }
 
-const goldOptions = computed(() => materialOptionsByClaimCount[form.claim_count].gold)
-const purpleOptions = computed(() => materialOptionsByClaimCount[form.claim_count].purple)
-const blueOptions = computed(() => materialOptionsByClaimCount[form.claim_count].blue)
-const greenOptions = computed(() => materialOptionsByClaimCount[form.claim_count].green)
+const materialOptionsByLevel: Partial<Record<number, Partial<Record<ClaimCount, MaterialOptions>>>> = {
+  5: {
+    1: {
+      gold: [0],
+      purple: [0, 1],
+      blue: [4],
+      green: [6, 7]
+    }
+  }
+}
+
+const getMaterialOptions = (solaLevel: number, claimCount: ClaimCount): MaterialOptions | null => {
+  const levelOptions = materialOptionsByLevel[solaLevel]
+  if (levelOptions) {
+    return levelOptions[claimCount] ?? null
+  }
+  return defaultMaterialOptionsByClaimCount[claimCount]
+}
+
+const currentMaterialOptions = computed(() => {
+  return getMaterialOptions(form.sola_level, form.claim_count) || defaultMaterialOptionsByClaimCount[1]
+})
+
+const goldOptions = computed(() => currentMaterialOptions.value.gold)
+const purpleOptions = computed(() => currentMaterialOptions.value.purple)
+const blueOptions = computed(() => currentMaterialOptions.value.blue)
+const greenOptions = computed(() => currentMaterialOptions.value.green)
+
+const isClaimCountDisabled = (claimCount: ClaimCount) => {
+  return getMaterialOptions(form.sola_level, claimCount) === null
+}
 
 const applyClaimCountDefaults = () => {
   form.gold = goldOptions.value[0]
@@ -237,8 +267,20 @@ const handleDateChange = () => {
   isDateManuallyEdited.value = true
 }
 
+const handleLevelChange = (level: number) => {
+  if (form.sola_level === level) {
+    return
+  }
+
+  form.sola_level = level
+  if (isClaimCountDisabled(form.claim_count)) {
+    form.claim_count = 1
+  }
+  applyClaimCountDefaults()
+}
+
 const handleClaimCountChange = (claimCount: ClaimCount) => {
-  if (form.claim_count === claimCount) {
+  if (form.claim_count === claimCount || isClaimCountDisabled(claimCount)) {
     return
   }
   form.claim_count = claimCount
@@ -248,6 +290,11 @@ const handleClaimCountChange = (claimCount: ClaimCount) => {
 const handleSubmit = async () => {
   if (!form.player_id) {
     ElMessage.warning('请输入玩家ID')
+    return
+  }
+
+  if (isClaimCountDisabled(form.claim_count)) {
+    ElMessage.warning('当前索拉等级不支持该领取次数')
     return
   }
 
