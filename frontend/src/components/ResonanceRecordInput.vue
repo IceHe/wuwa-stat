@@ -315,7 +315,7 @@ const handleSubmit = async () => {
     savePlayerId(form.player_id)
     ElMessage.success('录入成功')
     emit('success')
-    handleReset()
+    resetForm(true)
   } catch (error) {
     ElMessage.error('录入失败: ' + (error as Error).message)
   } finally {
@@ -361,12 +361,17 @@ const loadLastPlayerId = async () => {
   }
 }
 
-const handleReset = () => {
+const resetForm = (preserveSolaLevel = false) => {
+  const currentSolaLevel = form.sola_level
   form.date = getDefaultGameDate()
   isDateManuallyEdited.value = false
-  form.sola_level = 8
+  form.sola_level = preserveSolaLevel ? currentSolaLevel : 8
   form.claim_count = 1
   applyClaimCountDefaults()
+}
+
+const handleReset = () => {
+  resetForm()
 }
 
 onMounted(async () => {
