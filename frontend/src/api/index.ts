@@ -155,6 +155,15 @@ export interface AuthMeResponse {
   permissions: Permission[]
 }
 
+export interface ActiveAccount {
+  account_id: number
+  id: string
+  abbr: string
+  phone_tail: string
+  nickname: string
+  is_active: boolean
+}
+
 export const getStoredAuthToken = (): string => localStorage.getItem(AUTH_TOKEN_KEY) || ''
 
 export const setStoredAuthToken = (token: string) => {
@@ -188,7 +197,7 @@ api.interceptors.response.use(
     } else if (status === 403) {
       ElMessage.error('无权限')
     } else if (status === 503) {
-      ElMessage.error('鉴权服务不可用')
+      ElMessage.error(error?.response?.data?.detail || '服务不可用')
     }
     return Promise.reject(error)
   }
@@ -242,6 +251,10 @@ export const getAuthMe = async (forceRefresh = false): Promise<AuthMeResponse | 
 
 export const authApi = {
   me: () => getAuthMe()
+}
+
+export const accountsApi = {
+  getActiveAccounts: () => api.get<ActiveAccount[]>('/accounts/active')
 }
 
 export const tacetApi = {

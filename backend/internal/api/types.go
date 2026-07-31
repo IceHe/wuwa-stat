@@ -12,6 +12,15 @@ type authMeResponse struct {
 	Permissions []string `json:"permissions"`
 }
 
+type activeAccountResponse struct {
+	AccountID int    `json:"account_id"`
+	ID        string `json:"id"`
+	Abbr      string `json:"abbr"`
+	PhoneTail string `json:"phone_tail"`
+	Nickname  string `json:"nickname"`
+	IsActive  bool   `json:"is_active"`
+}
+
 type listResponse[T any] struct {
 	Data        []T `json:"data"`
 	Total       int `json:"total"`

@@ -40,7 +40,11 @@
 
       <el-tabs v-else v-model="activeTab">
         <el-tab-pane label="无音区产出统计" name="tacet" lazy>
-          <TacetRecordInput v-if="canEdit" @success="handleInputSuccess" />
+          <TacetRecordInput
+            v-if="canEdit"
+            v-model:player-id="sharedPlayerId"
+            @success="handleInputSuccess"
+          />
           <TacetRecordList
             :refresh="refreshTrigger"
             :can-edit="canEdit"
@@ -52,7 +56,11 @@
         </el-tab-pane>
 
         <el-tab-pane label="共鸣者突破材料统计" name="ascension" lazy>
-          <AscensionRecordInput v-if="canEdit" @success="handleAscensionInputSuccess" />
+          <AscensionRecordInput
+            v-if="canEdit"
+            v-model:player-id="sharedPlayerId"
+            @success="handleAscensionInputSuccess"
+          />
           <AscensionRecordList
             :refresh="ascensionRefreshTrigger"
             :can-edit="canEdit"
@@ -64,7 +72,11 @@
         </el-tab-pane>
 
         <el-tab-pane label="凝素领域产出统计" name="resonance" lazy>
-          <ResonanceRecordInput v-if="canEdit" @success="handleResonanceInputSuccess" />
+          <ResonanceRecordInput
+            v-if="canEdit"
+            v-model:player-id="sharedPlayerId"
+            @success="handleResonanceInputSuccess"
+          />
           <ResonanceRecordList
             :refresh="resonanceRefreshTrigger"
             :can-edit="canEdit"
@@ -80,7 +92,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   authApi,
@@ -106,10 +118,29 @@ const activeTab = ref('tacet')
 const refreshTrigger = ref(0)
 const ascensionRefreshTrigger = ref(0)
 const resonanceRefreshTrigger = ref(0)
+const PLAYER_ID_STORAGE_KEY = 'wuwa_last_player_id'
+const LEGACY_PLAYER_ID_STORAGE_KEYS = [
+  'wuwa_last_ascension_player_id',
+  'wuwa_last_resonance_player_id'
+]
 const tokenInput = ref('')
 const authLoading = ref(false)
 const isLoggedIn = ref(false)
 const authMe = ref<AuthMeResponse | null>(null)
+
+const getInitialPlayerId = () => {
+  const keys = [PLAYER_ID_STORAGE_KEY, ...LEGACY_PLAYER_ID_STORAGE_KEYS]
+  for (const key of keys) {
+    const playerId = localStorage.getItem(key)?.trim()
+    if (playerId) {
+      localStorage.setItem(PLAYER_ID_STORAGE_KEY, playerId)
+      return playerId
+    }
+  }
+  return ''
+}
+
+const sharedPlayerId = ref(getInitialPlayerId())
 
 const permissions = computed<Permission[]>(() => authMe.value?.permissions || [])
 const currentUserId = computed<number | null>(() => authMe.value?.user_id ?? null)
@@ -118,6 +149,15 @@ const currentUserName = computed(() => authMe.value?.name || '')
 const canView = computed(() => permissions.value.includes('view') || permissions.value.includes('manage'))
 const canEdit = computed(() => permissions.value.includes('edit') || permissions.value.includes('manage'))
 const canManage = computed(() => permissions.value.includes('manage'))
+
+watch(sharedPlayerId, (playerId) => {
+  const normalizedPlayerId = playerId.trim()
+  if (normalizedPlayerId) {
+    localStorage.setItem(PLAYER_ID_STORAGE_KEY, normalizedPlayerId)
+  } else {
+    localStorage.removeItem(PLAYER_ID_STORAGE_KEY)
+  }
+})
 
 const handleInputSuccess = () => {
   refreshTrigger.value++

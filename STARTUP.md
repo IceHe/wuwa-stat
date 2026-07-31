@@ -121,6 +121,10 @@ curl --noproxy '*' -H "Authorization: Bearer ${TOKEN}" "http://localhost:8000/ap
 - `AUTH_SERVICE_URL` 是否可达
 - 鉴权服务是否已启动并可正常返回 `/api/validate`
 
+若玩家 ID 快捷选择无法加载账号，请检查：
+- `ACCOUNT_SERVICE_URL` 是否可达，默认指向 `http://127.0.0.1:8765`
+- 账号管理服务是否已启动并可正常返回 `/api/accounts?active_only=true`
+
 ## 停止服务
 
 - 停止后端：结束运行 `go run ./cmd/server` 的终端或进程

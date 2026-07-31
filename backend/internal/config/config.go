@@ -10,11 +10,13 @@ import (
 )
 
 type Config struct {
-	DatabaseURL               string
-	FrontendURL               string
-	AuthServiceURL            string
-	AuthServiceTimeoutSeconds float64
-	Port                      string
+	DatabaseURL                  string
+	FrontendURL                  string
+	AuthServiceURL               string
+	AuthServiceTimeoutSeconds    float64
+	AccountServiceURL            string
+	AccountServiceTimeoutSeconds float64
+	Port                         string
 }
 
 func Load() (Config, error) {
@@ -22,11 +24,13 @@ func Load() (Config, error) {
 	loadEnvFile(filepath.Join("backend", ".env"))
 
 	cfg := Config{
-		DatabaseURL:               strings.TrimSpace(os.Getenv("DATABASE_URL")),
-		FrontendURL:               getEnv("FRONTEND_URL", "http://localhost:5173"),
-		AuthServiceURL:            getEnv("AUTH_SERVICE_URL", "http://127.0.0.1:8080"),
-		AuthServiceTimeoutSeconds: getEnvFloat("AUTH_SERVICE_TIMEOUT_SECONDS", 3),
-		Port:                      getEnv("PORT", "8000"),
+		DatabaseURL:                  strings.TrimSpace(os.Getenv("DATABASE_URL")),
+		FrontendURL:                  getEnv("FRONTEND_URL", "http://localhost:5173"),
+		AuthServiceURL:               getEnv("AUTH_SERVICE_URL", "http://127.0.0.1:8080"),
+		AuthServiceTimeoutSeconds:    getEnvFloat("AUTH_SERVICE_TIMEOUT_SECONDS", 3),
+		AccountServiceURL:            getEnv("ACCOUNT_SERVICE_URL", "http://127.0.0.1:8765"),
+		AccountServiceTimeoutSeconds: getEnvFloat("ACCOUNT_SERVICE_TIMEOUT_SECONDS", 3),
+		Port:                         getEnv("PORT", "8000"),
 	}
 
 	if cfg.DatabaseURL == "" {

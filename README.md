@@ -53,7 +53,7 @@ createdb wuthering_waves
 cd backend
 
 cp .env.example .env
-# 编辑 .env 中的 DATABASE_URL 和 FRONTEND_URL
+# 编辑 .env 中的 DATABASE_URL、FRONTEND_URL、AUTH_SERVICE_URL 和 ACCOUNT_SERVICE_URL
 
 go run ./cmd/initdb
 go run ./cmd/server

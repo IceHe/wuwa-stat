@@ -26,6 +26,7 @@ func (a *API) Routes() http.Handler {
 	mux.HandleFunc("/", a.handleRoot)
 	mux.HandleFunc("/health", a.handleHealth)
 	mux.HandleFunc("/api/auth/me", a.withView(a.handleAuthMe))
+	mux.HandleFunc("/api/accounts/active", a.withView(a.handleActiveAccounts))
 	mux.HandleFunc("/api/tacet_records", a.handleTacetRecords)
 	mux.HandleFunc("/api/tacet_records/", a.handleTacetRecordByID)
 	mux.HandleFunc("/api/stats", a.withView(a.handleTacetStats))

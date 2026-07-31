@@ -18,16 +18,13 @@
         />
       </el-form-item>
 
-      <el-form-item label="玩家ID">
-        <el-autocomplete
-          v-model="form.player_id"
-          :fetch-suggestions="queryPlayerIds"
-          placeholder="例如: 120003177"
-          style="width: 100%"
-          clearable
-          :trigger-on-focus="true"
-          value-key="value"
-        />
+      <el-form-item>
+        <template #label>
+          <button type="button" class="player-id-label-button" @click="openPlayerIdDialog">
+            玩家ID
+          </button>
+        </template>
+        <PlayerIdField ref="playerIdFieldRef" v-model="form.player_id" :player-ids="playerIds" />
       </el-form-item>
 
       <el-form-item label="索拉等级">
@@ -108,24 +105,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { tacetApi } from '../api'
+import PlayerIdField from './PlayerIdField.vue'
 
-const emit = defineEmits(['success'])
+const props = withDefaults(defineProps<{ playerId?: string }>(), {
+  playerId: ''
+})
 
-const STORAGE_KEY = 'wuwa_last_player_id'
+const emit = defineEmits<{
+  (e: 'success'): void
+  (e: 'update:playerId', value: string): void
+}>()
+
+type PlayerIdFieldExpose = {
+  openDialog: () => void
+}
+
 const playerIds = ref<string[]>([])
-
-// 从localStorage获取上次使用的玩家ID
-const getStoredPlayerId = (): string | null => {
-  return localStorage.getItem(STORAGE_KEY)
-}
-
-// 保存玩家ID到localStorage
-const savePlayerId = (playerId: string) => {
-  localStorage.setItem(STORAGE_KEY, playerId)
-}
+const playerIdFieldRef = ref<PlayerIdFieldExpose | null>(null)
 
 // 固定掉落组合表（根据提供的表格）
 const combosByLevel: Record<number, { gold: number; purple: number; experience: number }[]> = {
@@ -203,7 +202,7 @@ const scheduleGameDateRefresh = () => {
 
 const form = reactive({
   date: getDefaultGameDate(),
-  player_id: '',
+  player_id: props.playerId,
   gold_tubes: 0,
   purple_tubes: 0,
   sola_level: 8,
@@ -375,6 +374,28 @@ const handleDateChange = () => {
   isDateManuallyEdited.value = true
 }
 
+const openPlayerIdDialog = () => {
+  playerIdFieldRef.value?.openDialog()
+}
+
+watch(
+  () => props.playerId,
+  (playerId) => {
+    if (form.player_id !== playerId) {
+      form.player_id = playerId
+    }
+  }
+)
+
+watch(
+  () => form.player_id,
+  (playerId) => {
+    if (playerId !== props.playerId) {
+      emit('update:playerId', playerId)
+    }
+  }
+)
+
 const handleSubmit = async () => {
   if (!form.player_id) {
     ElMessage.warning('请输入玩家ID')
@@ -393,8 +414,7 @@ const handleSubmit = async () => {
     }]
 
     await tacetApi.createRecords(records)
-    // 保存玩家ID到localStorage
-    savePlayerId(form.player_id)
+    emit('update:playerId', form.player_id)
     ElMessage.success('录入成功')
     emit('success')
     handleReset()
@@ -403,19 +423,6 @@ const handleSubmit = async () => {
   } finally {
     loading.value = false
   }
-}
-
-const queryPlayerIds = (queryString: string, cb: (results: { value: string }[]) => void) => {
-  const results = playerIds.value
-    .filter((id) => id.toLowerCase().includes(queryString.toLowerCase()))
-    .slice(0, 10)
-    .map((id) => ({ value: id }))
-
-  // 如果没有匹配，但用户有输入，返回用户的输入作为建议
-  if (queryString && results.length === 0) {
-    results.push({ value: queryString })
-  }
-  cb(results)
 }
 
 const loadPlayerIds = async () => {
@@ -428,10 +435,8 @@ const loadPlayerIds = async () => {
 }
 
 const loadLastPlayerId = async () => {
-  // 优先从localStorage获取
-  const stored = getStoredPlayerId()
-  if (stored) {
-    form.player_id = stored
+  if (props.playerId) {
+    form.player_id = props.playerId
     return
   }
 
@@ -518,5 +523,26 @@ onBeforeUnmount(() => {
 :deep(.material-item-purple .el-input-number__input) {
   color: #7d3c98;
   font-weight: 600;
+}
+
+.player-id-label-button {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.player-id-label-button:hover,
+.player-id-label-button:focus-visible {
+  color: #409eff;
+}
+
+.player-id-label-button:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid #409eff;
+  outline-offset: 2px;
 }
 </style>

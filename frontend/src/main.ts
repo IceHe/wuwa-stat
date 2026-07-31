@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import {
+  ElAlert,
   ElAutocomplete,
   ElButton,
   ElCard,
@@ -7,6 +8,7 @@ import {
   ElDatePicker,
   ElDescriptions,
   ElDescriptionsItem,
+  ElDialog,
   ElForm,
   ElFormItem,
   ElHeader,
@@ -23,8 +25,10 @@ import {
   ElTable,
   ElTableColumn,
   ElTabs,
-  ElText
+  ElText,
+  ElTooltip
 } from 'element-plus'
+import 'element-plus/theme-chalk/el-alert.css'
 import 'element-plus/theme-chalk/base.css'
 import 'element-plus/theme-chalk/el-autocomplete.css'
 import 'element-plus/theme-chalk/el-button.css'
@@ -33,6 +37,7 @@ import 'element-plus/theme-chalk/el-container.css'
 import 'element-plus/theme-chalk/el-date-picker-panel.css'
 import 'element-plus/theme-chalk/el-descriptions.css'
 import 'element-plus/theme-chalk/el-descriptions-item.css'
+import 'element-plus/theme-chalk/el-dialog.css'
 import 'element-plus/theme-chalk/el-form.css'
 import 'element-plus/theme-chalk/el-form-item.css'
 import 'element-plus/theme-chalk/el-header.css'
@@ -43,6 +48,7 @@ import 'element-plus/theme-chalk/el-loading.css'
 import 'element-plus/theme-chalk/el-main.css'
 import 'element-plus/theme-chalk/el-message.css'
 import 'element-plus/theme-chalk/el-option.css'
+import 'element-plus/theme-chalk/el-overlay.css'
 import 'element-plus/theme-chalk/el-pagination.css'
 import 'element-plus/theme-chalk/el-popconfirm.css'
 import 'element-plus/theme-chalk/el-popover.css'
@@ -56,11 +62,13 @@ import 'element-plus/theme-chalk/el-table-column.css'
 import 'element-plus/theme-chalk/el-tabs.css'
 import 'element-plus/theme-chalk/el-text.css'
 import 'element-plus/theme-chalk/el-time-picker.css'
+import 'element-plus/theme-chalk/el-tooltip.css'
 import App from './App.vue'
 
 const app = createApp(App)
 
 const components = [
+  ElAlert,
   ElAutocomplete,
   ElButton,
   ElCard,
@@ -68,6 +76,7 @@ const components = [
   ElDatePicker,
   ElDescriptions,
   ElDescriptionsItem,
+  ElDialog,
   ElForm,
   ElFormItem,
   ElHeader,
@@ -83,7 +92,8 @@ const components = [
   ElTable,
   ElTableColumn,
   ElTabs,
-  ElText
+  ElText,
+  ElTooltip
 ]
 
 components.forEach((component) => {
