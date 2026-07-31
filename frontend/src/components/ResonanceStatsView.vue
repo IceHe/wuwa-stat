@@ -45,6 +45,22 @@
           <el-table-column prop="total" label="90级角色0+1升满技能+专武" min-width="210" align="center" />
         </el-table>
 
+        <div class="summary-title">无双倍从0刷满0+1（索拉8，每次40体力）</div>
+        <el-descriptions :column="2" border style="margin-bottom: 12px">
+          <el-descriptions-item label="需要领取次数">{{ noDoubleFarmSummary?.requiredRunsText }}</el-descriptions-item>
+          <el-descriptions-item label="预计体力">{{ noDoubleFarmSummary?.staminaText }}</el-descriptions-item>
+        </el-descriptions>
+        <el-table :data="noDoubleFarmRows" border style="margin-bottom: 12px" :row-class-name="getMaterialRowClass">
+          <el-table-column prop="label" label="品质" width="90" align="center" />
+          <el-table-column prop="demand" label="0+1需求" width="110" align="center" />
+          <el-table-column prop="avg" label="每次平均" width="120" align="center" />
+          <el-table-column prop="requiredRuns" label="本级门槛需领" min-width="150" align="center" />
+          <el-table-column prop="projectedDrop" label="预计原始产出" min-width="140" align="center" />
+          <el-table-column prop="incoming" label="下级溢出补入" min-width="140" align="center" />
+          <el-table-column prop="surplus" label="满足本级后溢出" min-width="150" align="center" />
+          <el-table-column prop="convertUp" label="向上合成" min-width="190" align="center" />
+        </el-table>
+
         <el-table :data="doubleWeekRows" border style="margin-bottom: 12px" :row-class-name="getMaterialRowClass">
           <el-table-column prop="label" label="品质" width="120" align="center" />
           <el-table-column prop="weekly" label="索8产出" width="140" align="center" />
@@ -120,7 +136,33 @@ const level8Summary = computed(() => {
 })
 
 const formatNumber = (value: number) => {
+  if (!Number.isFinite(value)) return '无法计算'
   return value.toFixed(2)
+}
+
+type MaterialKey = 'gold' | 'purple' | 'blue' | 'green'
+type MaterialAmounts = Record<MaterialKey, number>
+
+const normalizeNearZero = (value: number) => {
+  return Math.abs(value) < 0.0000001 ? 0 : value
+}
+
+const formatRoundedRuns = (value: number) => {
+  if (!Number.isFinite(value)) return '无法计算'
+
+  return `${Math.ceil(value)} 次（理论 ${formatNumber(value)}）`
+}
+
+const formatIntegerRuns = (value: number) => {
+  if (!Number.isFinite(value)) return '无法计算'
+
+  return `${value} 次`
+}
+
+const formatStamina = (runs: number) => {
+  if (!Number.isFinite(runs)) return '无法计算'
+
+  return `${runs * 40} 体力`
 }
 
 const level8Rows = computed(() => {
@@ -163,12 +205,174 @@ const roleDemand = {
   green: { character: 25, weapon: 6, total: 31 }
 }
 
+const roleDemandTotals: MaterialAmounts = {
+  gold: roleDemand.gold.total,
+  purple: roleDemand.purple.total,
+  blue: roleDemand.blue.total,
+  green: roleDemand.green.total
+}
+
 const roleDemandRows = [
   { label: '金', ...roleDemand.gold },
   { label: '紫', ...roleDemand.purple },
   { label: '蓝', ...roleDemand.blue },
   { label: '绿', ...roleDemand.green }
 ]
+
+const buildConvertedFulfillment = (drops: MaterialAmounts, demand: MaterialAmounts) => {
+  const greenSurplus = normalizeNearZero(drops.green - demand.green)
+  const greenToBlue = normalizeNearZero(Math.max(0, greenSurplus) / 3)
+
+  const blueIncoming = greenToBlue
+  const blueSurplus = normalizeNearZero(drops.blue + blueIncoming - demand.blue)
+  const blueToPurple = normalizeNearZero(Math.max(0, blueSurplus) / 3)
+
+  const purpleIncoming = blueToPurple
+  const purpleSurplus = normalizeNearZero(drops.purple + purpleIncoming - demand.purple)
+  const purpleToGold = normalizeNearZero(Math.max(0, purpleSurplus) / 3)
+
+  const goldIncoming = purpleToGold
+  const goldSurplus = normalizeNearZero(drops.gold + goldIncoming - demand.gold)
+
+  return {
+    green: {
+      incoming: 0,
+      surplus: greenSurplus,
+      convertUp: greenToBlue,
+      convertLabel: greenSurplus > 0 ? `${formatNumber(greenSurplus)} / 3 = ${formatNumber(greenToBlue)} 蓝` : '无溢出'
+    },
+    blue: {
+      incoming: blueIncoming,
+      surplus: blueSurplus,
+      convertUp: blueToPurple,
+      convertLabel: blueSurplus > 0 ? `${formatNumber(blueSurplus)} / 3 = ${formatNumber(blueToPurple)} 紫` : '无溢出'
+    },
+    purple: {
+      incoming: purpleIncoming,
+      surplus: purpleSurplus,
+      convertUp: purpleToGold,
+      convertLabel: purpleSurplus > 0 ? `${formatNumber(purpleSurplus)} / 3 = ${formatNumber(purpleToGold)} 金` : '无溢出'
+    },
+    gold: {
+      incoming: goldIncoming,
+      surplus: goldSurplus,
+      convertUp: 0,
+      convertLabel: '最高品质'
+    }
+  }
+}
+
+const noDoubleFarmSummary = computed(() => {
+  if (!level8Summary.value) return null
+
+  const averageDrops: MaterialAmounts = {
+    gold: level8Summary.value.avgGold,
+    purple: level8Summary.value.avgPurple,
+    blue: level8Summary.value.avgBlue,
+    green: level8Summary.value.avgGreen
+  }
+
+  const gates = [
+    {
+      key: 'green' as const,
+      label: '绿',
+      demand: roleDemandTotals.green,
+      avg: averageDrops.green,
+      equivalentDemand: roleDemandTotals.green,
+      equivalentAvg: averageDrops.green
+    },
+    {
+      key: 'blue' as const,
+      label: '蓝',
+      demand: roleDemandTotals.blue,
+      avg: averageDrops.blue,
+      equivalentDemand: roleDemandTotals.blue + roleDemandTotals.green / 3,
+      equivalentAvg: averageDrops.blue + averageDrops.green / 3
+    },
+    {
+      key: 'purple' as const,
+      label: '紫',
+      demand: roleDemandTotals.purple,
+      avg: averageDrops.purple,
+      equivalentDemand: roleDemandTotals.purple + roleDemandTotals.blue / 3 + roleDemandTotals.green / 9,
+      equivalentAvg: averageDrops.purple + averageDrops.blue / 3 + averageDrops.green / 9
+    },
+    {
+      key: 'gold' as const,
+      label: '金',
+      demand: roleDemandTotals.gold,
+      avg: averageDrops.gold,
+      equivalentDemand:
+        roleDemandTotals.gold +
+        roleDemandTotals.purple / 3 +
+        roleDemandTotals.blue / 9 +
+        roleDemandTotals.green / 27,
+      equivalentAvg:
+        averageDrops.gold +
+        averageDrops.purple / 3 +
+        averageDrops.blue / 9 +
+        averageDrops.green / 27
+    }
+  ]
+
+  const gatesWithRuns = gates.map((gate) => ({
+    ...gate,
+    theoreticalRuns: gate.equivalentAvg > 0 ? gate.equivalentDemand / gate.equivalentAvg : Number.POSITIVE_INFINITY
+  }))
+
+  const maxTheoreticalRuns = Math.max(...gatesWithRuns.map((gate) => gate.theoreticalRuns))
+  const requiredRuns = Number.isFinite(maxTheoreticalRuns) ? Math.ceil(maxTheoreticalRuns) : Number.POSITIVE_INFINITY
+
+  if (!Number.isFinite(requiredRuns)) {
+    return {
+      requiredRuns,
+      requiredRunsText: '无法计算',
+      staminaText: '无法计算',
+      rows: gatesWithRuns.map((gate) => ({
+        label: gate.label,
+        demand: gate.demand,
+        avg: formatNumber(gate.avg),
+        requiredRuns: formatRoundedRuns(gate.theoreticalRuns),
+        projectedDrop: '无法计算',
+        incoming: '无法计算',
+        surplus: '无法计算',
+        convertUp: '无法计算'
+      }))
+    }
+  }
+
+  const projectedDrops: MaterialAmounts = {
+    gold: averageDrops.gold * requiredRuns,
+    purple: averageDrops.purple * requiredRuns,
+    blue: averageDrops.blue * requiredRuns,
+    green: averageDrops.green * requiredRuns
+  }
+  const fulfillment = buildConvertedFulfillment(projectedDrops, roleDemandTotals)
+
+  return {
+    requiredRuns,
+    requiredRunsText: formatIntegerRuns(requiredRuns),
+    staminaText: formatStamina(requiredRuns),
+    rows: gatesWithRuns.map((gate) => {
+      const fulfilled = fulfillment[gate.key]
+
+      return {
+        label: gate.label,
+        demand: gate.demand,
+        avg: formatNumber(gate.avg),
+        requiredRuns: formatRoundedRuns(gate.theoreticalRuns),
+        projectedDrop: formatNumber(projectedDrops[gate.key]),
+        incoming: gate.key === 'green' ? '-' : formatNumber(fulfilled.incoming),
+        surplus: formatNumber(fulfilled.surplus),
+        convertUp: fulfilled.convertLabel
+      }
+    })
+  }
+})
+
+const noDoubleFarmRows = computed(() => {
+  return noDoubleFarmSummary.value?.rows || []
+})
 
 const doubleWeekSummary = computed(() => {
   if (!level8Summary.value) return null
