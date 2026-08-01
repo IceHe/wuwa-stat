@@ -39,6 +39,18 @@ func (a *API) createResonanceRecords(w http.ResponseWriter, r *http.Request, aut
 		return
 	}
 
+	validatedRecords := make([]resonanceRecordInput, 0, len(payload.ResonanceRecords))
+	energyCosts := map[string]int{}
+	for _, item := range payload.ResonanceRecords {
+		record, err := validateResonanceRecord(item)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		validatedRecords = append(validatedRecords, record)
+		addEnergyDeduction(energyCosts, record.PlayerID, record.ClaimCount*40)
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
@@ -49,14 +61,8 @@ func (a *API) createResonanceRecords(w http.ResponseWriter, r *http.Request, aut
 	}
 	defer tx.Rollback()
 
-	records := make([]resonanceRecordResponse, 0, len(payload.ResonanceRecords))
-	for _, item := range payload.ResonanceRecords {
-		record, err := validateResonanceRecord(item)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-
+	records := make([]resonanceRecordResponse, 0, len(validatedRecords))
+	for _, record := range validatedRecords {
 		var created resonanceRecordResponse
 		err = tx.QueryRowContext(ctx, `
 			INSERT INTO resonance_records (date, player_id, sola_level, claim_count, gold, purple, blue, green, created_by_user_id)
@@ -69,6 +75,16 @@ func (a *API) createResonanceRecords(w http.ResponseWriter, r *http.Request, aut
 			return
 		}
 		records = append(records, created)
+	}
+
+	if !payload.SkipEnergyDeduction {
+		if err := a.deductEnergyForPlayers(ctx, extractToken(r), energyCosts); err != nil {
+			if writeEnergyDeductionError(w, err) {
+				return
+			}
+			writeError(w, http.StatusServiceUnavailable, "账号服务不可用")
+			return
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -266,7 +282,23 @@ func (a *API) deleteResonanceRecord(w http.ResponseWriter, r *http.Request, auth
 		return
 	}
 
-	deleted, authErr, err := deleteByID(r.Context(), a.db, "resonance_records", recordID, auth)
+	deleted, authErr, err := a.deleteRecordWithEnergyRefund(
+		r.Context(),
+		a.db,
+		"resonance_records",
+		recordID,
+		auth,
+		extractToken(r),
+		`SELECT player_id, claim_count, created_by_user_id, created_at FROM resonance_records WHERE id = $1 FOR UPDATE`,
+		func(row *sql.Row) (deleteEnergyRecord, error) {
+			var record deleteEnergyRecord
+			err := row.Scan(&record.PlayerID, &record.ClaimCount, &record.CreatedByUserID, &record.CreatedAt)
+			return record, err
+		},
+		func(record deleteEnergyRecord) int {
+			return recentRecordEnergyCost(record, 40)
+		},
+	)
 	if authErr != nil {
 		writeError(w, authErr.Status, authErr.Detail)
 		return

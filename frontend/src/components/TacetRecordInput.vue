@@ -108,6 +108,7 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { tacetApi } from '../api'
+import { confirmRecordWithoutEnergyDeduction, isEnergyInsufficientError } from '../utils/energyDeduction'
 import PlayerIdField from './PlayerIdField.vue'
 
 const props = withDefaults(defineProps<{ playerId?: string }>(), {
@@ -396,6 +397,23 @@ watch(
   }
 )
 
+const submitRecords = async (skipEnergyDeduction = false) => {
+  const records = [{
+    date: form.date,
+    player_id: form.player_id,
+    gold_tubes: form.gold_tubes,
+    purple_tubes: form.purple_tubes,
+    claim_count: form.claim_count,
+    sola_level: form.sola_level
+  }]
+
+  await tacetApi.createRecords(records, { skipEnergyDeduction })
+  emit('update:playerId', form.player_id)
+  ElMessage.success('录入成功')
+  emit('success')
+  handleReset()
+}
+
 const handleSubmit = async () => {
   if (!form.player_id) {
     ElMessage.warning('请输入玩家ID')
@@ -404,22 +422,25 @@ const handleSubmit = async () => {
 
   loading.value = true
   try {
-    const records = [{
-      date: form.date,
-      player_id: form.player_id,
-      gold_tubes: form.gold_tubes,
-      purple_tubes: form.purple_tubes,
-      claim_count: form.claim_count,
-      sola_level: form.sola_level
-    }]
-
-    await tacetApi.createRecords(records)
-    emit('update:playerId', form.player_id)
-    ElMessage.success('录入成功')
-    emit('success')
-    handleReset()
+    await submitRecords()
   } catch (error) {
-    ElMessage.error('录入失败: ' + (error as Error).message)
+    if (!isEnergyInsufficientError(error)) {
+      ElMessage.error('录入失败: ' + (error as Error).message)
+      return
+    }
+
+    loading.value = false
+    const confirmed = await confirmRecordWithoutEnergyDeduction()
+    if (!confirmed) {
+      return
+    }
+
+    loading.value = true
+    try {
+      await submitRecords(true)
+    } catch (retryError) {
+      ElMessage.error('录入失败: ' + (retryError as Error).message)
+    }
   } finally {
     loading.value = false
   }

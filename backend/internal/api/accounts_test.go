@@ -3,9 +3,12 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
+	"time"
 
 	"wuwa/stat/backend/internal/config"
 )
@@ -113,5 +116,145 @@ func TestFetchActiveAccountsFiltersAndMapsUpstreamAccounts(t *testing.T) {
 	if got[0].ID != "120000001" || got[0].Abbr != "A" || got[0].PhoneTail != "8000" || got[0].Nickname != "active" {
 		body, _ := json.Marshal(got[0])
 		t.Fatalf("account mapping mismatch: %s", body)
+	}
+}
+
+func TestDeductEnergyForPlayersSplitsSpendCosts(t *testing.T) {
+	var spentCosts []int
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/accounts/by-id/120000001":
+			writeJSON(w, http.StatusOK, upstreamAccountResponse{
+				AccountID:               1,
+				ID:                      "120000001",
+				IsActive:                true,
+				CurrentWaveplate:        180,
+				CurrentWaveplateCrystal: 0,
+			})
+		case "/api/accounts/by-id/120000001/energy/spend":
+			var payload struct {
+				Cost int `json:"cost"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("invalid spend payload: %v", err)
+			}
+			spentCosts = append(spentCosts, payload.Cost)
+			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	api := &API{
+		cfg: config.Config{
+			AccountServiceURL:            upstream.URL,
+			AccountServiceTimeoutSeconds: 3,
+		},
+	}
+
+	err := api.deductEnergyForPlayers(context.Background(), "test-token", map[string]int{"120000001": 180})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := []int{120, 60}
+	if !reflect.DeepEqual(spentCosts, want) {
+		t.Fatalf("spend costs mismatch: got %v, want %v", spentCosts, want)
+	}
+}
+
+func TestDeductEnergyForPlayersReturnsInsufficientBeforeSpend(t *testing.T) {
+	var spendCalled bool
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/accounts/by-id/120000001":
+			writeJSON(w, http.StatusOK, upstreamAccountResponse{
+				AccountID:               1,
+				ID:                      "120000001",
+				IsActive:                true,
+				CurrentWaveplate:        40,
+				CurrentWaveplateCrystal: 0,
+			})
+		case "/api/accounts/by-id/120000001/energy/spend":
+			spendCalled = true
+			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	api := &API{
+		cfg: config.Config{
+			AccountServiceURL:            upstream.URL,
+			AccountServiceTimeoutSeconds: 3,
+		},
+	}
+
+	err := api.deductEnergyForPlayers(context.Background(), "test-token", map[string]int{"120000001": 60})
+	if !errors.Is(err, errEnergyInsufficient) {
+		t.Fatalf("expected insufficient error, got %v", err)
+	}
+	if spendCalled {
+		t.Fatalf("spend endpoint should not be called when precheck is insufficient")
+	}
+}
+
+func TestRefundEnergyForPlayersSplitsGainAmounts(t *testing.T) {
+	var gainedAmounts []int
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/accounts/by-id/120000001":
+			writeJSON(w, http.StatusOK, upstreamAccountResponse{
+				AccountID: 1,
+				ID:        "120000001",
+				IsActive:  true,
+			})
+		case "/api/accounts/by-id/120000001/energy/gain":
+			var payload struct {
+				Amount int `json:"amount"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("invalid gain payload: %v", err)
+			}
+			gainedAmounts = append(gainedAmounts, payload.Amount)
+			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	api := &API{
+		cfg: config.Config{
+			AccountServiceURL:            upstream.URL,
+			AccountServiceTimeoutSeconds: 3,
+		},
+	}
+
+	err := api.refundEnergyForPlayers(context.Background(), "test-token", map[string]int{"120000001": 80})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := []int{40, 40}
+	if !reflect.DeepEqual(gainedAmounts, want) {
+		t.Fatalf("gain amounts mismatch: got %v, want %v", gainedAmounts, want)
+	}
+}
+
+func TestRecentRecordEnergyCostOnlyRefundsWithinOneHour(t *testing.T) {
+	recent := deleteEnergyRecord{ClaimCount: 2, CreatedAt: time.Now().Add(-30 * time.Minute)}
+	if got := recentRecordEnergyCost(recent, 40); got != 80 {
+		t.Fatalf("recent refund mismatch: got %d, want 80", got)
+	}
+
+	old := deleteEnergyRecord{ClaimCount: 2, CreatedAt: time.Now().Add(-61 * time.Minute)}
+	if got := recentRecordEnergyCost(old, 40); got != 0 {
+		t.Fatalf("old refund mismatch: got %d, want 0", got)
 	}
 }

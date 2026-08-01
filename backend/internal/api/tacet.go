@@ -59,6 +59,18 @@ func (a *API) createTacetRecords(w http.ResponseWriter, r *http.Request, auth au
 		return
 	}
 
+	validatedRecords := make([]tacetRecordInput, 0, len(payload.TacetRecords))
+	energyCosts := map[string]int{}
+	for _, item := range payload.TacetRecords {
+		record, err := validateTacetRecord(item)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		validatedRecords = append(validatedRecords, record)
+		addEnergyDeduction(energyCosts, record.PlayerID, record.ClaimCount*60)
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
@@ -69,14 +81,8 @@ func (a *API) createTacetRecords(w http.ResponseWriter, r *http.Request, auth au
 	}
 	defer tx.Rollback()
 
-	records := make([]tacetRecordResponse, 0, len(payload.TacetRecords))
-	for _, item := range payload.TacetRecords {
-		record, err := validateTacetRecord(item)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-
+	records := make([]tacetRecordResponse, 0, len(validatedRecords))
+	for _, record := range validatedRecords {
 		var created tacetRecordResponse
 		err = tx.QueryRowContext(ctx, `
 			INSERT INTO tacet_records (date, player_id, gold_tubes, purple_tubes, claim_count, sola_level, created_by_user_id)
@@ -90,6 +96,16 @@ func (a *API) createTacetRecords(w http.ResponseWriter, r *http.Request, auth au
 		}
 
 		records = append(records, created)
+	}
+
+	if !payload.SkipEnergyDeduction {
+		if err := a.deductEnergyForPlayers(ctx, extractToken(r), energyCosts); err != nil {
+			if writeEnergyDeductionError(w, err) {
+				return
+			}
+			writeError(w, http.StatusServiceUnavailable, "账号服务不可用")
+			return
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -286,7 +302,23 @@ func (a *API) deleteTacetRecord(w http.ResponseWriter, r *http.Request, auth aut
 		return
 	}
 
-	deleted, authErr, err := deleteByID(r.Context(), a.db, "tacet_records", recordID, auth)
+	deleted, authErr, err := a.deleteRecordWithEnergyRefund(
+		r.Context(),
+		a.db,
+		"tacet_records",
+		recordID,
+		auth,
+		extractToken(r),
+		`SELECT player_id, claim_count, created_by_user_id, created_at FROM tacet_records WHERE id = $1 FOR UPDATE`,
+		func(row *sql.Row) (deleteEnergyRecord, error) {
+			var record deleteEnergyRecord
+			err := row.Scan(&record.PlayerID, &record.ClaimCount, &record.CreatedByUserID, &record.CreatedAt)
+			return record, err
+		},
+		func(record deleteEnergyRecord) int {
+			return recentRecordEnergyCost(record, 60)
+		},
+	)
 	if authErr != nil {
 		writeError(w, authErr.Status, authErr.Detail)
 		return

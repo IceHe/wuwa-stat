@@ -13,12 +13,14 @@ import (
 )
 
 type upstreamAccountResponse struct {
-	AccountID   int     `json:"account_id"`
-	ID          string  `json:"id"`
-	Abbr        string  `json:"abbr"`
-	PhoneNumber *string `json:"phone_number"`
-	Nickname    string  `json:"nickname"`
-	IsActive    bool    `json:"is_active"`
+	AccountID               int     `json:"account_id"`
+	ID                      string  `json:"id"`
+	Abbr                    string  `json:"abbr"`
+	PhoneNumber             *string `json:"phone_number"`
+	Nickname                string  `json:"nickname"`
+	IsActive                bool    `json:"is_active"`
+	CurrentWaveplate        int     `json:"current_waveplate"`
+	CurrentWaveplateCrystal int     `json:"current_waveplate_crystal"`
 }
 
 func (a *API) handleActiveAccounts(w http.ResponseWriter, r *http.Request, _ authContext) {
@@ -47,10 +49,7 @@ func (a *API) fetchActiveAccounts(ctx context.Context, token string) ([]activeAc
 		return nil, err
 	}
 
-	timeout := time.Duration(a.cfg.AccountServiceTimeoutSeconds * float64(time.Second))
-	if timeout <= 0 {
-		timeout = 3 * time.Second
-	}
+	timeout := accountServiceTimeout(a)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -58,14 +57,9 @@ func (a *API) fetchActiveAccounts(ctx context.Context, token string) ([]activeAc
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Accept", "application/json")
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-		req.Header.Set("X-Token", token)
-	}
+	setAccountServiceHeaders(req, token)
 
-	client := &http.Client{Timeout: timeout}
-	resp, err := client.Do(req)
+	resp, err := accountServiceHTTPClient(a).Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -115,6 +109,23 @@ func (a *API) fetchActiveAccounts(ctx context.Context, token string) ([]activeAc
 }
 
 func buildAccountServiceAccountsURL(base string) (string, error) {
+	parsedURL, err := buildAccountServiceAPIURL(base, "accounts")
+	if err != nil {
+		return "", err
+	}
+
+	parsed, err := url.Parse(parsedURL)
+	if err != nil {
+		return "", err
+	}
+	query := parsed.Query()
+	query.Set("active_only", "true")
+	parsed.RawQuery = query.Encode()
+
+	return parsed.String(), nil
+}
+
+func buildAccountServiceAPIURL(base string, parts ...string) (string, error) {
 	base = strings.TrimSpace(base)
 	if base == "" {
 		return "", fmt.Errorf("account service url is empty")
@@ -130,17 +141,40 @@ func buildAccountServiceAccountsURL(base string) (string, error) {
 
 	basePath := strings.TrimRight(parsed.Path, "/")
 	if strings.HasSuffix(basePath, "/api") {
-		parsed.Path = basePath + "/accounts"
+		parsed.Path = basePath
 	} else {
-		parsed.Path = basePath + "/api/accounts"
+		parsed.Path = basePath + "/api"
+	}
+	for _, part := range parts {
+		part = strings.Trim(part, "/")
+		if part == "" {
+			continue
+		}
+		parsed.Path += "/" + url.PathEscape(part)
 	}
 	parsed.RawPath = ""
 
-	query := parsed.Query()
-	query.Set("active_only", "true")
-	parsed.RawQuery = query.Encode()
-
 	return parsed.String(), nil
+}
+
+func accountServiceTimeout(a *API) time.Duration {
+	timeout := time.Duration(a.cfg.AccountServiceTimeoutSeconds * float64(time.Second))
+	if timeout <= 0 {
+		return 3 * time.Second
+	}
+	return timeout
+}
+
+func accountServiceHTTPClient(a *API) *http.Client {
+	return &http.Client{Timeout: accountServiceTimeout(a)}
+}
+
+func setAccountServiceHeaders(req *http.Request, token string) {
+	req.Header.Set("Accept", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("X-Token", token)
+	}
 }
 
 func phoneTail(phoneNumber *string) string {

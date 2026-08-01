@@ -78,6 +78,7 @@
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ascensionApi } from '../api'
+import { confirmRecordWithoutEnergyDeduction, isEnergyInsufficientError } from '../utils/energyDeduction'
 import PlayerIdField from './PlayerIdField.vue'
 
 const props = withDefaults(defineProps<{ playerId?: string }>(), {
@@ -202,6 +203,23 @@ watch(
   }
 )
 
+const submitRecords = async (skipEnergyDeduction = false) => {
+  const submittedSolaLevel = form.sola_level
+  const submittedCount = form.count
+  const records = Array(submittedCount).fill(null).map(() => ({
+    date: form.date,
+    player_id: form.player_id,
+    sola_level: submittedSolaLevel,
+    drop_count: form.drop_count
+  }))
+
+  await ascensionApi.createRecords(records, { skipEnergyDeduction })
+  emit('update:playerId', form.player_id)
+  ElMessage.success(`成功录入 ${submittedCount} 条记录`)
+  emit('success')
+  resetForm(submittedSolaLevel)
+}
+
 const handleSubmit = async () => {
   if (!form.player_id) {
     ElMessage.warning('请输入玩家ID')
@@ -210,21 +228,25 @@ const handleSubmit = async () => {
 
   loading.value = true
   try {
-    const submittedSolaLevel = form.sola_level
-    const records = Array(form.count).fill(null).map(() => ({
-      date: form.date,
-      player_id: form.player_id,
-      sola_level: submittedSolaLevel,
-      drop_count: form.drop_count
-    }))
-
-    await ascensionApi.createRecords(records)
-    emit('update:playerId', form.player_id)
-    ElMessage.success(`成功录入 ${form.count} 条记录`)
-    emit('success')
-    resetForm(submittedSolaLevel)
+    await submitRecords()
   } catch (error) {
-    ElMessage.error('录入失败: ' + (error as Error).message)
+    if (!isEnergyInsufficientError(error)) {
+      ElMessage.error('录入失败: ' + (error as Error).message)
+      return
+    }
+
+    loading.value = false
+    const confirmed = await confirmRecordWithoutEnergyDeduction()
+    if (!confirmed) {
+      return
+    }
+
+    loading.value = true
+    try {
+      await submitRecords(true)
+    } catch (retryError) {
+      ElMessage.error('录入失败: ' + (retryError as Error).message)
+    }
   } finally {
     loading.value = false
   }

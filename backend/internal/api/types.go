@@ -38,7 +38,8 @@ type tacetRecordInput struct {
 }
 
 type tacetBatchCreate struct {
-	TacetRecords []tacetRecordInput `json:"tacet_records"`
+	TacetRecords        []tacetRecordInput `json:"tacet_records"`
+	SkipEnergyDeduction bool               `json:"skip_energy_deduction"`
 }
 
 type tacetRecordResponse struct {
@@ -91,7 +92,8 @@ type ascensionRecordInput struct {
 }
 
 type ascensionBatchCreate struct {
-	AscensionRecords []ascensionRecordInput `json:"ascension_records"`
+	AscensionRecords    []ascensionRecordInput `json:"ascension_records"`
+	SkipEnergyDeduction bool                   `json:"skip_energy_deduction"`
 }
 
 type ascensionRecordResponse struct {
@@ -133,7 +135,8 @@ type resonanceRecordInput struct {
 }
 
 type resonanceBatchCreate struct {
-	ResonanceRecords []resonanceRecordInput `json:"resonance_records"`
+	ResonanceRecords    []resonanceRecordInput `json:"resonance_records"`
+	SkipEnergyDeduction bool                   `json:"skip_energy_deduction"`
 }
 
 type resonanceRecordResponse struct {

@@ -164,6 +164,10 @@ export interface ActiveAccount {
   is_active: boolean
 }
 
+export interface CreateRecordsOptions {
+  skipEnergyDeduction?: boolean
+}
+
 export const getStoredAuthToken = (): string => localStorage.getItem(AUTH_TOKEN_KEY) || ''
 
 export const setStoredAuthToken = (token: string) => {
@@ -258,8 +262,11 @@ export const accountsApi = {
 }
 
 export const tacetApi = {
-  createRecords: (records: TacetRecord[]) =>
-    api.post<TacetRecord[]>('/tacet_records', { tacet_records: records }),
+  createRecords: (records: TacetRecord[], options?: CreateRecordsOptions) =>
+    api.post<TacetRecord[]>('/tacet_records', {
+      tacet_records: records,
+      skip_energy_deduction: !!options?.skipEnergyDeduction
+    }),
 
   getRecords: (params?: {
     player_id?: string
@@ -288,8 +295,11 @@ export const tacetApi = {
 }
 
 export const ascensionApi = {
-  createRecords: (records: AscensionRecord[]) =>
-    api.post<AscensionRecord[]>('/ascension-records', { ascension_records: records }),
+  createRecords: (records: AscensionRecord[], options?: CreateRecordsOptions) =>
+    api.post<AscensionRecord[]>('/ascension-records', {
+      ascension_records: records,
+      skip_energy_deduction: !!options?.skipEnergyDeduction
+    }),
 
   getRecords: (params?: {
     player_id?: string
@@ -312,8 +322,11 @@ export const ascensionApi = {
 }
 
 export const resonanceApi = {
-  createRecords: (records: ResonanceRecord[]) =>
-    api.post<ResonanceRecord[]>('/resonance-records', { resonance_records: records }),
+  createRecords: (records: ResonanceRecord[], options?: CreateRecordsOptions) =>
+    api.post<ResonanceRecord[]>('/resonance-records', {
+      resonance_records: records,
+      skip_energy_deduction: !!options?.skipEnergyDeduction
+    }),
 
   getRecords: (params?: {
     player_id?: string
