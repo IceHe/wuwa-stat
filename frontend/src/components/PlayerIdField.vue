@@ -72,12 +72,12 @@
           <strong>{{ row.abbr || '-' }}</strong>
         </template>
       </el-table-column>
-      <el-table-column prop="id" label="玩家ID" width="150" />
       <el-table-column prop="phone_tail" label="尾号" width="90">
         <template #default="{ row }">
           {{ row.phone_tail || '-' }}
         </template>
       </el-table-column>
+      <el-table-column prop="id" label="玩家ID" width="150" />
       <el-table-column prop="nickname" label="游戏内昵称" min-width="150">
         <template #default="{ row }">
           {{ row.nickname || '-' }}
