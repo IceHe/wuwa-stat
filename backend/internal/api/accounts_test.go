@@ -90,7 +90,16 @@ func TestFetchActiveAccountsFiltersAndMapsUpstreamAccounts(t *testing.T) {
 
 		writeJSON(w, http.StatusOK, []upstreamAccountResponse{
 			{AccountID: 2, ID: "120000002", Abbr: "B", PhoneNumber: &inactivePhone, Nickname: "inactive", IsActive: false},
-			{AccountID: 1, ID: "120000001", Abbr: "A", PhoneNumber: &phone, Nickname: "active", IsActive: true},
+			{
+				AccountID:               1,
+				ID:                      "120000001",
+				Abbr:                    "A",
+				PhoneNumber:             &phone,
+				Nickname:                "active",
+				IsActive:                true,
+				CurrentWaveplate:        180,
+				CurrentWaveplateCrystal: 60,
+			},
 		})
 	}))
 	defer upstream.Close()
@@ -116,6 +125,10 @@ func TestFetchActiveAccountsFiltersAndMapsUpstreamAccounts(t *testing.T) {
 	if got[0].ID != "120000001" || got[0].Abbr != "A" || got[0].PhoneTail != "8000" || got[0].Nickname != "active" {
 		body, _ := json.Marshal(got[0])
 		t.Fatalf("account mapping mismatch: %s", body)
+	}
+	if got[0].CurrentWaveplate != 180 || got[0].CurrentWaveplateCrystal != 60 {
+		body, _ := json.Marshal(got[0])
+		t.Fatalf("account energy mismatch: %s", body)
 	}
 }
 

@@ -86,12 +86,14 @@ func (a *API) fetchActiveAccounts(ctx context.Context, token string) ([]activeAc
 			continue
 		}
 		accounts = append(accounts, activeAccountResponse{
-			AccountID: account.AccountID,
-			ID:        strings.TrimSpace(account.ID),
-			Abbr:      strings.TrimSpace(account.Abbr),
-			PhoneTail: phoneTail(account.PhoneNumber),
-			Nickname:  strings.TrimSpace(account.Nickname),
-			IsActive:  account.IsActive,
+			AccountID:               account.AccountID,
+			ID:                      strings.TrimSpace(account.ID),
+			Abbr:                    strings.TrimSpace(account.Abbr),
+			PhoneTail:               phoneTail(account.PhoneNumber),
+			Nickname:                strings.TrimSpace(account.Nickname),
+			IsActive:                account.IsActive,
+			CurrentWaveplate:        account.CurrentWaveplate,
+			CurrentWaveplateCrystal: account.CurrentWaveplateCrystal,
 		})
 	}
 

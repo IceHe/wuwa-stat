@@ -77,6 +77,17 @@
           {{ row.phone_tail || '-' }}
         </template>
       </el-table-column>
+      <el-table-column label="体力" width="110">
+        <template #default="{ row }">
+          <span
+            class="energy-pill"
+            :class="getEnergyStageClass(row)"
+            :title="getEnergyTooltip(row)"
+          >
+            {{ formatEnergy(row) }}
+          </span>
+        </template>
+      </el-table-column>
       <el-table-column prop="id" label="玩家ID" width="150" />
       <el-table-column prop="nickname" label="游戏内昵称" min-width="150">
         <template #default="{ row }">
@@ -165,6 +176,32 @@ const getErrorMessage = (error: unknown) => {
   return response?.data?.detail || (error instanceof Error ? error.message : '加载账号失败')
 }
 
+const formatEnergy = (account: ActiveAccount) => {
+  const waveplate = Number(account.current_waveplate || 0)
+  const crystal = Number(account.current_waveplate_crystal || 0)
+  return crystal > 0 ? `${waveplate} + ${crystal}` : String(waveplate)
+}
+
+const getEnergyTotal = (account: ActiveAccount) => {
+  const waveplate = Number(account.current_waveplate || 0)
+  const crystal = Number(account.current_waveplate_crystal || 0)
+  return waveplate + crystal
+}
+
+const getEnergyStageClass = (account: ActiveAccount) => {
+  const total = getEnergyTotal(account)
+  if (total >= 240) return 'energy-stage-high'
+  if (total >= 120) return 'energy-stage-mid'
+  return 'energy-stage-low'
+}
+
+const getEnergyTooltip = (account: ActiveAccount) => {
+  const waveplate = Number(account.current_waveplate || 0)
+  const crystal = Number(account.current_waveplate_crystal || 0)
+  const total = waveplate + crystal
+  return `当前体力 ${waveplate}，体力结晶 ${crystal}，总计 ${total}`
+}
+
 const loadAccounts = async (force = false) => {
   if (accountsLoaded.value && !force) {
     return
@@ -225,6 +262,37 @@ defineExpose({
 
 .account-picker-error {
   margin-bottom: 12px;
+}
+
+.energy-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 68px;
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.energy-stage-low {
+  background: #eef6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.energy-stage-mid {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #9a3412;
+}
+
+.energy-stage-high {
+  background: #fef2f2;
+  border-color: #f87171;
+  color: #b91c1c;
 }
 
 :deep(.el-table__row) {

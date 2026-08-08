@@ -13,12 +13,14 @@ type authMeResponse struct {
 }
 
 type activeAccountResponse struct {
-	AccountID int    `json:"account_id"`
-	ID        string `json:"id"`
-	Abbr      string `json:"abbr"`
-	PhoneTail string `json:"phone_tail"`
-	Nickname  string `json:"nickname"`
-	IsActive  bool   `json:"is_active"`
+	AccountID               int    `json:"account_id"`
+	ID                      string `json:"id"`
+	Abbr                    string `json:"abbr"`
+	PhoneTail               string `json:"phone_tail"`
+	Nickname                string `json:"nickname"`
+	IsActive                bool   `json:"is_active"`
+	CurrentWaveplate        int    `json:"current_waveplate"`
+	CurrentWaveplateCrystal int    `json:"current_waveplate_crystal"`
 }
 
 type listResponse[T any] struct {

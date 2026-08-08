@@ -162,6 +162,8 @@ export interface ActiveAccount {
   phone_tail: string
   nickname: string
   is_active: boolean
+  current_waveplate: number
+  current_waveplate_crystal: number
 }
 
 export interface CreateRecordsOptions {
