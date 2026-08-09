@@ -13,7 +13,7 @@
 cd /root/wuwa/stat/backend
 
 cp .env.example .env
-# 按实际情况编辑 .env 中的 DATABASE_URL 和 FRONTEND_URL
+# 按实际情况编辑 .env 中的 DATABASE_URL、FRONTEND_URL 和 DASHBOARD_ENERGY_NOTIFY_TOKEN
 
 go run ./cmd/initdb
 go run ./cmd/server

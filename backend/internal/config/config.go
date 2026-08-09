@@ -16,6 +16,7 @@ type Config struct {
 	AuthServiceTimeoutSeconds    float64
 	AccountServiceURL            string
 	AccountServiceTimeoutSeconds float64
+	DashboardEnergyNotifyToken   string
 	Port                         string
 }
 
@@ -30,6 +31,7 @@ func Load() (Config, error) {
 		AuthServiceTimeoutSeconds:    getEnvFloat("AUTH_SERVICE_TIMEOUT_SECONDS", 3),
 		AccountServiceURL:            getEnv("ACCOUNT_SERVICE_URL", "http://127.0.0.1:8765"),
 		AccountServiceTimeoutSeconds: getEnvFloat("ACCOUNT_SERVICE_TIMEOUT_SECONDS", 3),
+		DashboardEnergyNotifyToken:   getEnv("DASHBOARD_ENERGY_NOTIFY_TOKEN", ""),
 		Port:                         getEnv("PORT", "8000"),
 	}
 

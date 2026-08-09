@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -29,6 +30,16 @@ type deleteEnergyRecord struct {
 }
 
 func (a *API) deductEnergyForPlayers(ctx context.Context, token string, costs map[string]int) error {
+	changed := false
+	defer func() {
+		if !changed {
+			return
+		}
+		if err := a.notifyDashboardEnergyRevision(); err != nil {
+			log.Printf("dashboard energy revision notify failed: %v", err)
+		}
+	}()
+
 	targets := make([]energyDeductionTarget, 0, len(costs))
 	for playerID, cost := range costs {
 		playerID = strings.TrimSpace(playerID)
@@ -59,6 +70,7 @@ func (a *API) deductEnergyForPlayers(ctx context.Context, token string, costs ma
 			if err := a.spendAccountEnergy(ctx, token, target.PlayerID, cost); err != nil {
 				return err
 			}
+			changed = true
 		}
 	}
 
@@ -150,6 +162,16 @@ func (a *API) spendAccountEnergy(ctx context.Context, token string, playerID str
 }
 
 func (a *API) refundEnergyForPlayers(ctx context.Context, token string, costs map[string]int) error {
+	changed := false
+	defer func() {
+		if !changed {
+			return
+		}
+		if err := a.notifyDashboardEnergyRevision(); err != nil {
+			log.Printf("dashboard energy revision notify failed: %v", err)
+		}
+	}()
+
 	for playerID, cost := range costs {
 		playerID = strings.TrimSpace(playerID)
 		if playerID == "" || cost <= 0 {
@@ -168,6 +190,7 @@ func (a *API) refundEnergyForPlayers(ctx context.Context, token string, costs ma
 			if err := a.gainAccountEnergy(ctx, token, playerID, amount); err != nil {
 				return err
 			}
+			changed = true
 		}
 	}
 

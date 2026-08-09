@@ -53,7 +53,7 @@ createdb wuthering_waves
 cd backend
 
 cp .env.example .env
-# 编辑 .env 中的 DATABASE_URL、FRONTEND_URL、AUTH_SERVICE_URL 和 ACCOUNT_SERVICE_URL
+# 编辑 .env 中的 DATABASE_URL、FRONTEND_URL、AUTH_SERVICE_URL、ACCOUNT_SERVICE_URL 和 DASHBOARD_ENERGY_NOTIFY_TOKEN
 
 go run ./cmd/initdb
 go run ./cmd/server
@@ -86,6 +86,7 @@ npm run dev
 - 需要至少 `view` 权限才能查看数据
 - 需要 `edit` 或 `manage` 权限才能新增、删除记录
 - 默认鉴权服务地址为 `http://127.0.0.1:8080`
+- 如果 `ACCOUNT_SERVICE_URL` 指向远程 `mgt`，请把 `DASHBOARD_ENERGY_NOTIFY_TOKEN` 配成与 `mgt` 端一致，这样 `stat` 在改动体力后才能主动通知刷新总览
 
 ## 功能特性
 
