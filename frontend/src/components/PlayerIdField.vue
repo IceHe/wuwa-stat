@@ -38,7 +38,7 @@
         placeholder="搜索缩写 / ID / 尾号 / 昵称"
         clearable
       />
-      <el-button :icon="Refresh" :loading="accountsLoading" @click="loadAccounts(true)">
+      <el-button :icon="Refresh" :loading="accountsLoading" @click="loadAccounts">
         刷新
       </el-button>
     </div>
@@ -119,7 +119,6 @@ const emit = defineEmits<{
 
 const dialogVisible = ref(false)
 const accounts = ref<ActiveAccount[]>([])
-const accountsLoaded = ref(false)
 const accountsLoading = ref(false)
 const accountsError = ref('')
 const accountQuery = ref('')
@@ -202,17 +201,12 @@ const getEnergyTooltip = (account: ActiveAccount) => {
   return `当前体力 ${waveplate}，体力结晶 ${crystal}，总计 ${total}`
 }
 
-const loadAccounts = async (force = false) => {
-  if (accountsLoaded.value && !force) {
-    return
-  }
-
+const loadAccounts = async () => {
   accountsLoading.value = true
   accountsError.value = ''
   try {
     const response = await accountsApi.getActiveAccounts()
     accounts.value = response.data
-    accountsLoaded.value = true
   } catch (error) {
     accountsError.value = getErrorMessage(error)
   } finally {
