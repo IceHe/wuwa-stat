@@ -9,6 +9,7 @@
       :trigger-on-focus="true"
       value-key="value"
       @update:model-value="handleInput"
+      @focus="refreshAccount"
     >
       <template #append>
         <el-tooltip content="选择未停用账号" placement="top">
@@ -21,6 +22,40 @@
         </el-tooltip>
       </template>
     </el-autocomplete>
+
+    <dl v-if="matchedAccount" class="account-summary" aria-live="polite">
+      <div class="account-summary-item">
+        <dt>缩写</dt>
+        <dd>
+          <strong>{{ matchedAccount.abbr || '-' }}</strong>
+          <span v-if="!matchedAccount.is_active" class="inactive-label">已停用</span>
+        </dd>
+      </div>
+      <div class="account-summary-item">
+        <dt>尾号</dt>
+        <dd>{{ matchedAccount.phone_tail || '-' }}</dd>
+      </div>
+      <div class="account-summary-item">
+        <dt>体力</dt>
+        <dd>
+          <span
+            class="energy-pill"
+            :class="getEnergyStageClass(matchedAccount)"
+            :title="getEnergyTooltip(matchedAccount)"
+          >
+            {{ formatEnergy(matchedAccount) }}
+          </span>
+        </dd>
+      </div>
+      <div class="account-summary-item">
+        <dt>玩家ID</dt>
+        <dd>{{ matchedAccount.id }}</dd>
+      </div>
+      <div class="account-summary-item account-summary-nickname">
+        <dt>游戏内昵称</dt>
+        <dd>{{ matchedAccount.nickname || '-' }}</dd>
+      </div>
+    </dl>
   </div>
 
   <el-dialog
@@ -99,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Refresh, Search, User } from '@element-plus/icons-vue'
 import { accountsApi, type ActiveAccount } from '../api'
 
@@ -122,6 +157,9 @@ const accounts = ref<ActiveAccount[]>([])
 const accountsLoading = ref(false)
 const accountsError = ref('')
 const accountQuery = ref('')
+const matchedAccount = ref<ActiveAccount | null>(null)
+let accountLookupTimer: ReturnType<typeof setTimeout> | null = null
+let accountLookupSequence = 0
 
 const normalize = (value: unknown) => String(value ?? '').trim().toLowerCase()
 
@@ -154,6 +192,57 @@ const filteredAccounts = computed(() => {
 
 const handleInput = (value: string) => {
   emit('update:modelValue', value)
+}
+
+const getResponseStatus = (error: unknown) =>
+  (error as { response?: { status?: number } })?.response?.status
+
+const lookupAccount = async (playerId: string, sequence: number) => {
+  try {
+    const response = await accountsApi.getAccountById(playerId)
+    if (sequence === accountLookupSequence && normalize(props.modelValue) === normalize(playerId)) {
+      matchedAccount.value = response.data
+    }
+  } catch (error) {
+    if (sequence === accountLookupSequence && getResponseStatus(error) === 404) {
+      matchedAccount.value = null
+    }
+  }
+}
+
+const scheduleAccountLookup = (value: string) => {
+  if (accountLookupTimer) {
+    clearTimeout(accountLookupTimer)
+    accountLookupTimer = null
+  }
+
+  const playerId = String(value ?? '').trim()
+  const sequence = ++accountLookupSequence
+  matchedAccount.value = accounts.value.find((account) => normalize(account.id) === normalize(playerId)) || null
+  if (!playerId) {
+    return
+  }
+
+  accountLookupTimer = setTimeout(() => {
+    accountLookupTimer = null
+    void lookupAccount(playerId, sequence)
+  }, 400)
+}
+
+const refreshAccount = async () => {
+  if (accountLookupTimer) {
+    clearTimeout(accountLookupTimer)
+    accountLookupTimer = null
+  }
+
+  const playerId = String(props.modelValue ?? '').trim()
+  const sequence = ++accountLookupSequence
+  if (!playerId) {
+    matchedAccount.value = null
+    return
+  }
+
+  await lookupAccount(playerId, sequence)
 }
 
 const queryPlayerIds = (queryString: string, cb: (results: { value: string }[]) => void) => {
@@ -207,6 +296,11 @@ const loadAccounts = async () => {
   try {
     const response = await accountsApi.getActiveAccounts()
     accounts.value = response.data
+    const currentPlayerId = normalize(props.modelValue)
+    const currentAccount = response.data.find((account) => normalize(account.id) === currentPlayerId)
+    if (currentAccount) {
+      matchedAccount.value = currentAccount
+    }
   } catch (error) {
     accountsError.value = getErrorMessage(error)
   } finally {
@@ -220,12 +314,27 @@ const openDialog = () => {
 }
 
 const selectAccount = (account: ActiveAccount) => {
+  matchedAccount.value = account
   emit('update:modelValue', account.id)
   dialogVisible.value = false
 }
 
+watch(
+  () => props.modelValue,
+  scheduleAccountLookup,
+  { immediate: true }
+)
+
+onBeforeUnmount(() => {
+  accountLookupSequence++
+  if (accountLookupTimer) {
+    clearTimeout(accountLookupTimer)
+  }
+})
+
 defineExpose({
-  openDialog
+  openDialog,
+  refreshAccount
 })
 </script>
 
@@ -236,6 +345,47 @@ defineExpose({
 
 .player-id-input {
   width: 100%;
+}
+
+.account-summary {
+  display: grid;
+  grid-template-columns: minmax(64px, 0.65fr) minmax(64px, 0.65fr) minmax(90px, 0.8fr) minmax(110px, 1.1fr) minmax(110px, 1.25fr);
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-left: 3px solid #409eff;
+  border-radius: 4px;
+}
+
+.account-summary-item {
+  min-width: 0;
+}
+
+.account-summary-item dt {
+  margin: 0 0 2px;
+  color: #909399;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.account-summary-item dd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  margin: 0;
+  color: #303133;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.inactive-label {
+  color: #c45656;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 :deep(.el-input-group__append) {
@@ -294,6 +444,14 @@ defineExpose({
 }
 
 @media (max-width: 640px) {
+  .account-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .account-summary-nickname {
+    grid-column: 1 / -1;
+  }
+
   .account-picker-toolbar {
     align-items: stretch;
     flex-direction: column;

@@ -43,6 +43,37 @@ func (a *API) handleActiveAccounts(w http.ResponseWriter, r *http.Request, _ aut
 	writeJSON(w, http.StatusOK, accounts)
 }
 
+func (a *API) handleAccountByID(w http.ResponseWriter, r *http.Request, _ authContext) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+
+	const prefix = "/api/accounts/by-id/"
+	playerID := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, prefix))
+	if playerID == "" || strings.Contains(playerID, "/") {
+		http.NotFound(w, r)
+		return
+	}
+
+	account, found, err := a.fetchAccountByID(r.Context(), extractToken(r), playerID)
+	if err != nil {
+		if authErr := asAuthError(err); authErr != nil {
+			writeError(w, authErr.Status, authErr.Detail)
+			return
+		}
+		log.Printf("account service request failed: %v", err)
+		writeError(w, http.StatusServiceUnavailable, "账号服务不可用")
+		return
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, "账号不存在")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, mapAccountResponse(account))
+}
+
 func (a *API) fetchActiveAccounts(ctx context.Context, token string) ([]activeAccountResponse, error) {
 	endpoint, err := buildAccountServiceAccountsURL(a.cfg.AccountServiceURL)
 	if err != nil {
@@ -85,16 +116,7 @@ func (a *API) fetchActiveAccounts(ctx context.Context, token string) ([]activeAc
 		if !account.IsActive {
 			continue
 		}
-		accounts = append(accounts, activeAccountResponse{
-			AccountID:               account.AccountID,
-			ID:                      strings.TrimSpace(account.ID),
-			Abbr:                    strings.TrimSpace(account.Abbr),
-			PhoneTail:               phoneTail(account.PhoneNumber),
-			Nickname:                strings.TrimSpace(account.Nickname),
-			IsActive:                account.IsActive,
-			CurrentWaveplate:        account.CurrentWaveplate,
-			CurrentWaveplateCrystal: account.CurrentWaveplateCrystal,
-		})
+		accounts = append(accounts, mapAccountResponse(account))
 	}
 
 	sort.SliceStable(accounts, func(i, j int) bool {
@@ -108,6 +130,19 @@ func (a *API) fetchActiveAccounts(ctx context.Context, token string) ([]activeAc
 	})
 
 	return accounts, nil
+}
+
+func mapAccountResponse(account upstreamAccountResponse) activeAccountResponse {
+	return activeAccountResponse{
+		AccountID:               account.AccountID,
+		ID:                      strings.TrimSpace(account.ID),
+		Abbr:                    strings.TrimSpace(account.Abbr),
+		PhoneTail:               phoneTail(account.PhoneNumber),
+		Nickname:                strings.TrimSpace(account.Nickname),
+		IsActive:                account.IsActive,
+		CurrentWaveplate:        account.CurrentWaveplate,
+		CurrentWaveplateCrystal: account.CurrentWaveplateCrystal,
+	}
 }
 
 func buildAccountServiceAccountsURL(base string) (string, error) {

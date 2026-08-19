@@ -92,6 +92,7 @@ const emit = defineEmits<{
 
 type PlayerIdFieldExpose = {
   openDialog: () => void
+  refreshAccount: () => Promise<void>
 }
 
 const playerIds = ref<string[]>([])
@@ -214,6 +215,7 @@ const submitRecords = async (skipEnergyDeduction = false) => {
   }))
 
   await ascensionApi.createRecords(records, { skipEnergyDeduction })
+  void playerIdFieldRef.value?.refreshAccount()
   emit('update:playerId', form.player_id)
   ElMessage.success(`成功录入 ${submittedCount} 条记录`)
   emit('success')

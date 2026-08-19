@@ -260,7 +260,9 @@ export const authApi = {
 }
 
 export const accountsApi = {
-  getActiveAccounts: () => api.get<ActiveAccount[]>('/accounts/active')
+  getActiveAccounts: () => api.get<ActiveAccount[]>('/accounts/active'),
+  getAccountById: (playerId: string) =>
+    api.get<ActiveAccount>(`/accounts/by-id/${encodeURIComponent(playerId)}`)
 }
 
 export const tacetApi = {

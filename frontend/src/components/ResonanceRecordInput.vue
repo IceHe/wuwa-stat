@@ -138,6 +138,7 @@ const emit = defineEmits<{
 
 type PlayerIdFieldExpose = {
   openDialog: () => void
+  refreshAccount: () => Promise<void>
 }
 
 const playerIds = ref<string[]>([])
@@ -324,6 +325,7 @@ const submitRecords = async (skipEnergyDeduction = false) => {
   }]
 
   await resonanceApi.createRecords(records, { skipEnergyDeduction })
+  void playerIdFieldRef.value?.refreshAccount()
   emit('update:playerId', form.player_id)
   ElMessage.success('录入成功')
   emit('success')

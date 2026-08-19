@@ -132,6 +132,76 @@ func TestFetchActiveAccountsFiltersAndMapsUpstreamAccounts(t *testing.T) {
 	}
 }
 
+func TestHandleAccountByIDMapsUpstreamAccount(t *testing.T) {
+	phone := "13800138000"
+	var sawToken bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/accounts/by-id/120000003" {
+			http.NotFound(w, r)
+			return
+		}
+		sawToken = r.Header.Get("Authorization") == "Bearer test-token" && r.Header.Get("X-Token") == "test-token"
+		writeJSON(w, http.StatusOK, upstreamAccountResponse{
+			AccountID:               3,
+			ID:                      " 120000003 ",
+			Abbr:                    " C ",
+			PhoneNumber:             &phone,
+			Nickname:                " Rover ",
+			IsActive:                false,
+			CurrentWaveplate:        100,
+			CurrentWaveplateCrystal: 40,
+		})
+	}))
+	defer upstream.Close()
+
+	api := &API{cfg: config.Config{
+		AccountServiceURL:            upstream.URL,
+		AccountServiceTimeoutSeconds: 3,
+	}}
+	req := httptest.NewRequest(http.MethodGet, "/api/accounts/by-id/120000003", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
+	recorder := httptest.NewRecorder()
+
+	api.handleAccountByID(recorder, req, authContext{})
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status mismatch: got %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	if !sawToken {
+		t.Fatal("upstream did not receive token headers")
+	}
+	var got activeAccountResponse
+	if err := json.NewDecoder(recorder.Body).Decode(&got); err != nil {
+		t.Fatalf("invalid response: %v", err)
+	}
+	if got.AccountID != 3 || got.ID != "120000003" || got.Abbr != "C" || got.PhoneTail != "8000" || got.Nickname != "Rover" {
+		body, _ := json.Marshal(got)
+		t.Fatalf("account mapping mismatch: %s", body)
+	}
+	if got.IsActive || got.CurrentWaveplate != 100 || got.CurrentWaveplateCrystal != 40 {
+		body, _ := json.Marshal(got)
+		t.Fatalf("account state mismatch: %s", body)
+	}
+}
+
+func TestHandleAccountByIDReturnsNotFound(t *testing.T) {
+	upstream := httptest.NewServer(http.NotFoundHandler())
+	defer upstream.Close()
+
+	api := &API{cfg: config.Config{
+		AccountServiceURL:            upstream.URL,
+		AccountServiceTimeoutSeconds: 3,
+	}}
+	req := httptest.NewRequest(http.MethodGet, "/api/accounts/by-id/120000099", nil)
+	recorder := httptest.NewRecorder()
+
+	api.handleAccountByID(recorder, req, authContext{})
+
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("status mismatch: got %d, want %d; body=%s", recorder.Code, http.StatusNotFound, recorder.Body.String())
+	}
+}
+
 func TestDeductEnergyForPlayersSplitsSpendCosts(t *testing.T) {
 	var spentCosts []int
 
