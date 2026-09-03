@@ -23,6 +23,18 @@ type upstreamAccountResponse struct {
 	CurrentWaveplateCrystal int     `json:"current_waveplate_crystal"`
 }
 
+type upstreamDashboardAccountResponse struct {
+	AccountID               int     `json:"account_id"`
+	ID                      string  `json:"id"`
+	Abbr                    string  `json:"abbr"`
+	PhoneNumber             *string `json:"phone_number"`
+	Nickname                string  `json:"nickname"`
+	CurrentWaveplate        int     `json:"current_waveplate"`
+	CurrentWaveplateCrystal int     `json:"current_waveplate_crystal"`
+	DailyTask               bool    `json:"daily_task"`
+	DailyTaskStatus         string  `json:"daily_task_status"`
+}
+
 func (a *API) handleActiveAccounts(w http.ResponseWriter, r *http.Request, _ authContext) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
@@ -56,7 +68,7 @@ func (a *API) handleAccountByID(w http.ResponseWriter, r *http.Request, _ authCo
 		return
 	}
 
-	account, found, err := a.fetchAccountByID(r.Context(), extractToken(r), playerID)
+	account, found, err := a.fetchAccountForDisplay(r.Context(), extractToken(r), playerID)
 	if err != nil {
 		if authErr := asAuthError(err); authErr != nil {
 			writeError(w, authErr.Status, authErr.Detail)
@@ -71,11 +83,11 @@ func (a *API) handleAccountByID(w http.ResponseWriter, r *http.Request, _ authCo
 		return
 	}
 
-	writeJSON(w, http.StatusOK, mapAccountResponse(account))
+	writeJSON(w, http.StatusOK, account)
 }
 
 func (a *API) fetchActiveAccounts(ctx context.Context, token string) ([]activeAccountResponse, error) {
-	endpoint, err := buildAccountServiceAccountsURL(a.cfg.AccountServiceURL)
+	endpoint, err := buildAccountServiceAPIURL(a.cfg.AccountServiceURL, "dashboard", "accounts")
 	if err != nil {
 		return nil, err
 	}
@@ -106,17 +118,14 @@ func (a *API) fetchActiveAccounts(ctx context.Context, token string) ([]activeAc
 		return nil, fmt.Errorf("account service unexpected status: %d", resp.StatusCode)
 	}
 
-	var upstream []upstreamAccountResponse
+	var upstream []upstreamDashboardAccountResponse
 	if err := json.NewDecoder(resp.Body).Decode(&upstream); err != nil {
 		return nil, err
 	}
 
 	accounts := make([]activeAccountResponse, 0, len(upstream))
 	for _, account := range upstream {
-		if !account.IsActive {
-			continue
-		}
-		accounts = append(accounts, mapAccountResponse(account))
+		accounts = append(accounts, mapDashboardAccountResponse(account))
 	}
 
 	sort.SliceStable(accounts, func(i, j int) bool {
@@ -132,6 +141,24 @@ func (a *API) fetchActiveAccounts(ctx context.Context, token string) ([]activeAc
 	return accounts, nil
 }
 
+func (a *API) fetchAccountForDisplay(ctx context.Context, token string, playerID string) (activeAccountResponse, bool, error) {
+	accounts, err := a.fetchActiveAccounts(ctx, token)
+	if err != nil {
+		return activeAccountResponse{}, false, err
+	}
+	for _, account := range accounts {
+		if account.ID == playerID {
+			return account, true, nil
+		}
+	}
+
+	account, found, err := a.fetchAccountByID(ctx, token, playerID)
+	if err != nil || !found {
+		return activeAccountResponse{}, found, err
+	}
+	return mapAccountResponse(account), true, nil
+}
+
 func mapAccountResponse(account upstreamAccountResponse) activeAccountResponse {
 	return activeAccountResponse{
 		AccountID:               account.AccountID,
@@ -145,21 +172,19 @@ func mapAccountResponse(account upstreamAccountResponse) activeAccountResponse {
 	}
 }
 
-func buildAccountServiceAccountsURL(base string) (string, error) {
-	parsedURL, err := buildAccountServiceAPIURL(base, "accounts")
-	if err != nil {
-		return "", err
+func mapDashboardAccountResponse(account upstreamDashboardAccountResponse) activeAccountResponse {
+	return activeAccountResponse{
+		AccountID:               account.AccountID,
+		ID:                      strings.TrimSpace(account.ID),
+		Abbr:                    strings.TrimSpace(account.Abbr),
+		PhoneTail:               phoneTail(account.PhoneNumber),
+		Nickname:                strings.TrimSpace(account.Nickname),
+		IsActive:                true,
+		CurrentWaveplate:        account.CurrentWaveplate,
+		CurrentWaveplateCrystal: account.CurrentWaveplateCrystal,
+		DailyTask:               account.DailyTask,
+		DailyTaskStatus:         strings.TrimSpace(account.DailyTaskStatus),
 	}
-
-	parsed, err := url.Parse(parsedURL)
-	if err != nil {
-		return "", err
-	}
-	query := parsed.Query()
-	query.Set("active_only", "true")
-	parsed.RawQuery = query.Encode()
-
-	return parsed.String(), nil
 }
 
 func buildAccountServiceAPIURL(base string, parts ...string) (string, error) {

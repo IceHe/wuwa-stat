@@ -13,7 +13,7 @@ import (
 	"wuwa/stat/backend/internal/config"
 )
 
-func TestBuildAccountServiceAccountsURL(t *testing.T) {
+func TestBuildAccountServiceDashboardAccountsURL(t *testing.T) {
 	tests := []struct {
 		name string
 		base string
@@ -22,23 +22,23 @@ func TestBuildAccountServiceAccountsURL(t *testing.T) {
 		{
 			name: "host root",
 			base: "http://127.0.0.1:8765",
-			want: "http://127.0.0.1:8765/api/accounts?active_only=true",
+			want: "http://127.0.0.1:8765/api/dashboard/accounts",
 		},
 		{
 			name: "api base",
 			base: "https://mgt.icehe.life/api",
-			want: "https://mgt.icehe.life/api/accounts?active_only=true",
+			want: "https://mgt.icehe.life/api/dashboard/accounts",
 		},
 		{
 			name: "preserve query",
 			base: "https://mgt.icehe.life/base?foo=bar",
-			want: "https://mgt.icehe.life/base/api/accounts?active_only=true&foo=bar",
+			want: "https://mgt.icehe.life/base/api/dashboard/accounts?foo=bar",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := buildAccountServiceAccountsURL(tt.base)
+			got, err := buildAccountServiceAPIURL(tt.base, "dashboard", "accounts")
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -72,33 +72,29 @@ func TestPhoneTail(t *testing.T) {
 	}
 }
 
-func TestFetchActiveAccountsFiltersAndMapsUpstreamAccounts(t *testing.T) {
+func TestFetchActiveAccountsMapsDashboardAccounts(t *testing.T) {
 	phone := "13800138000"
-	inactivePhone := "13900139000"
 	var sawToken bool
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/accounts" {
+		if r.URL.Path != "/api/dashboard/accounts" {
 			t.Fatalf("path mismatch: %s", r.URL.Path)
-		}
-		if r.URL.Query().Get("active_only") != "true" {
-			t.Fatalf("missing active_only query")
 		}
 		if r.Header.Get("Authorization") == "Bearer test-token" && r.Header.Get("X-Token") == "test-token" {
 			sawToken = true
 		}
 
-		writeJSON(w, http.StatusOK, []upstreamAccountResponse{
-			{AccountID: 2, ID: "120000002", Abbr: "B", PhoneNumber: &inactivePhone, Nickname: "inactive", IsActive: false},
+		writeJSON(w, http.StatusOK, []upstreamDashboardAccountResponse{
 			{
 				AccountID:               1,
 				ID:                      "120000001",
 				Abbr:                    "A",
 				PhoneNumber:             &phone,
 				Nickname:                "active",
-				IsActive:                true,
 				CurrentWaveplate:        180,
 				CurrentWaveplateCrystal: 60,
+				DailyTask:               true,
+				DailyTaskStatus:         "done",
 			},
 		})
 	}))
@@ -130,27 +126,32 @@ func TestFetchActiveAccountsFiltersAndMapsUpstreamAccounts(t *testing.T) {
 		body, _ := json.Marshal(got[0])
 		t.Fatalf("account energy mismatch: %s", body)
 	}
+	if !got[0].IsActive || !got[0].DailyTask || got[0].DailyTaskStatus != "done" {
+		body, _ := json.Marshal(got[0])
+		t.Fatalf("account daily state mismatch: %s", body)
+	}
 }
 
-func TestHandleAccountByIDMapsUpstreamAccount(t *testing.T) {
+func TestHandleAccountByIDMapsActiveDashboardAccount(t *testing.T) {
 	phone := "13800138000"
 	var sawToken bool
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/accounts/by-id/120000003" {
+		if r.URL.Path != "/api/dashboard/accounts" {
 			http.NotFound(w, r)
 			return
 		}
 		sawToken = r.Header.Get("Authorization") == "Bearer test-token" && r.Header.Get("X-Token") == "test-token"
-		writeJSON(w, http.StatusOK, upstreamAccountResponse{
+		writeJSON(w, http.StatusOK, []upstreamDashboardAccountResponse{{
 			AccountID:               3,
 			ID:                      " 120000003 ",
 			Abbr:                    " C ",
 			PhoneNumber:             &phone,
 			Nickname:                " Rover ",
-			IsActive:                false,
 			CurrentWaveplate:        100,
 			CurrentWaveplateCrystal: 40,
-		})
+			DailyTask:               true,
+			DailyTaskStatus:         "skipped",
+		}})
 	}))
 	defer upstream.Close()
 
@@ -178,14 +179,60 @@ func TestHandleAccountByIDMapsUpstreamAccount(t *testing.T) {
 		body, _ := json.Marshal(got)
 		t.Fatalf("account mapping mismatch: %s", body)
 	}
-	if got.IsActive || got.CurrentWaveplate != 100 || got.CurrentWaveplateCrystal != 40 {
+	if !got.IsActive || got.CurrentWaveplate != 100 || got.CurrentWaveplateCrystal != 40 || !got.DailyTask || got.DailyTaskStatus != "skipped" {
 		body, _ := json.Marshal(got)
 		t.Fatalf("account state mismatch: %s", body)
 	}
 }
 
+func TestHandleAccountByIDFallsBackForInactiveAccount(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/dashboard/accounts":
+			writeJSON(w, http.StatusOK, []upstreamDashboardAccountResponse{})
+		case "/api/accounts/by-id/120000004":
+			writeJSON(w, http.StatusOK, upstreamAccountResponse{
+				AccountID: 4,
+				ID:        "120000004",
+				Abbr:      "D",
+				IsActive:  false,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	api := &API{cfg: config.Config{
+		AccountServiceURL:            upstream.URL,
+		AccountServiceTimeoutSeconds: 3,
+	}}
+	req := httptest.NewRequest(http.MethodGet, "/api/accounts/by-id/120000004", nil)
+	recorder := httptest.NewRecorder()
+
+	api.handleAccountByID(recorder, req, authContext{})
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status mismatch: got %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	var got activeAccountResponse
+	if err := json.NewDecoder(recorder.Body).Decode(&got); err != nil {
+		t.Fatalf("invalid response: %v", err)
+	}
+	if got.IsActive || got.ID != "120000004" || got.DailyTask {
+		body, _ := json.Marshal(got)
+		t.Fatalf("inactive account mismatch: %s", body)
+	}
+}
+
 func TestHandleAccountByIDReturnsNotFound(t *testing.T) {
-	upstream := httptest.NewServer(http.NotFoundHandler())
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/dashboard/accounts" {
+			writeJSON(w, http.StatusOK, []upstreamDashboardAccountResponse{})
+			return
+		}
+		http.NotFound(w, r)
+	}))
 	defer upstream.Close()
 
 	api := &API{cfg: config.Config{

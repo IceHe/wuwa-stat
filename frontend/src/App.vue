@@ -55,22 +55,6 @@
           <TacetStatsView :refresh="refreshTrigger" class="mt-16" />
         </el-tab-pane>
 
-        <el-tab-pane label="共鸣者突破材料统计" name="ascension" lazy>
-          <AscensionRecordInput
-            v-if="canEdit"
-            v-model:player-id="sharedPlayerId"
-            @success="handleAscensionInputSuccess"
-          />
-          <AscensionRecordList
-            :refresh="ascensionRefreshTrigger"
-            :can-edit="canEdit"
-            :can-manage="canManage"
-            :current-user-id="currentUserId"
-            class="mt-16"
-          />
-          <AscensionStatsView :refresh="ascensionRefreshTrigger" class="mt-16" />
-        </el-tab-pane>
-
         <el-tab-pane label="凝素领域产出统计" name="resonance" lazy>
           <ResonanceRecordInput
             v-if="canEdit"
@@ -85,6 +69,22 @@
             class="mt-16"
           />
           <ResonanceStatsView :refresh="resonanceRefreshTrigger" class="mt-16" />
+        </el-tab-pane>
+
+        <el-tab-pane label="共鸣者突破材料统计" name="ascension" lazy>
+          <AscensionRecordInput
+            v-if="canEdit"
+            v-model:player-id="sharedPlayerId"
+            @success="handleAscensionInputSuccess"
+          />
+          <AscensionRecordList
+            :refresh="ascensionRefreshTrigger"
+            :can-edit="canEdit"
+            :can-manage="canManage"
+            :current-user-id="currentUserId"
+            class="mt-16"
+          />
+          <AscensionStatsView :refresh="ascensionRefreshTrigger" class="mt-16" />
         </el-tab-pane>
       </el-tabs>
     </el-main>

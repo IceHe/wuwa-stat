@@ -23,7 +23,13 @@
       </template>
     </el-autocomplete>
 
-    <dl v-if="matchedAccount" class="account-summary" aria-live="polite">
+    <dl
+      v-if="matchedAccount"
+      class="account-summary"
+      :class="{ 'daily-done-summary': isDailyTaskDone(matchedAccount) }"
+      :title="isDailyTaskDone(matchedAccount) ? '今日日常已完成' : undefined"
+      aria-live="polite"
+    >
       <div class="account-summary-item">
         <dt>缩写</dt>
         <dd>
@@ -93,6 +99,7 @@
       max-height="min(680px, calc(100vh - 220px))"
       empty-text="暂无未停用账号"
       stripe
+      :row-class-name="getAccountRowClass"
       @row-click="selectAccount"
     >
       <el-table-column label="" width="88" fixed="left">
@@ -290,6 +297,12 @@ const getEnergyTooltip = (account: ActiveAccount) => {
   return `当前体力 ${waveplate}，体力结晶 ${crystal}，总计 ${total}`
 }
 
+const getAccountRowClass = ({ row }: { row: ActiveAccount }) =>
+  isDailyTaskDone(row) ? 'daily-done-row' : ''
+
+const isDailyTaskDone = (account: ActiveAccount) =>
+  account.daily_task || ['done', 'skipped'].includes(normalize(account.daily_task_status))
+
 const loadAccounts = async () => {
   accountsLoading.value = true
   accountsError.value = ''
@@ -357,6 +370,12 @@ defineExpose({
   border: 1px solid #e5e7eb;
   border-left: 3px solid #409eff;
   border-radius: 4px;
+}
+
+.account-summary.daily-done-summary {
+  box-shadow: inset 0 0 0 9999px rgba(241, 247, 243, 0.45);
+  opacity: 0.46;
+  filter: saturate(45%);
 }
 
 .account-summary-item {
@@ -441,6 +460,16 @@ defineExpose({
 
 :deep(.el-table__row) {
   cursor: pointer;
+}
+
+:global(.daily-done-row > td) {
+  box-shadow: inset 0 0 0 9999px rgba(241, 247, 243, 0.45);
+  opacity: 0.46;
+  filter: saturate(45%);
+}
+
+:global(.daily-done-row:hover > td) {
+  opacity: 0.58;
 }
 
 @media (max-width: 640px) {

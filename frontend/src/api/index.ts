@@ -164,6 +164,8 @@ export interface ActiveAccount {
   is_active: boolean
   current_waveplate: number
   current_waveplate_crystal: number
+  daily_task: boolean
+  daily_task_status: string
 }
 
 export interface CreateRecordsOptions {

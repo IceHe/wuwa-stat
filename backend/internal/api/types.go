@@ -21,6 +21,8 @@ type activeAccountResponse struct {
 	IsActive                bool   `json:"is_active"`
 	CurrentWaveplate        int    `json:"current_waveplate"`
 	CurrentWaveplateCrystal int    `json:"current_waveplate_crystal"`
+	DailyTask               bool   `json:"daily_task"`
+	DailyTaskStatus         string `json:"daily_task_status"`
 }
 
 type listResponse[T any] struct {
