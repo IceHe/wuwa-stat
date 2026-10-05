@@ -185,3 +185,54 @@ type resonanceSolaLevelStats struct {
 type resonanceDetailedStatsResponse struct {
 	LevelStats []resonanceSolaLevelStats `json:"level_stats"`
 }
+
+type echoMainRecordInput struct {
+	Date        string `json:"date"`
+	PlayerID    string `json:"player_id"`
+	SolaLevel   int    `json:"sola_level"`
+	C3MainStat  string `json:"c3_main_stat"`
+	C1MainStat  string `json:"c1_main_stat"`
+	TacetDomain string `json:"tacet_domain"`
+	EchoSet     string `json:"echo_set"`
+}
+
+type echoMainBatchCreate struct {
+	Records             []echoMainRecordInput `json:"records"`
+	SkipEnergyDeduction bool                  `json:"skip_energy_deduction"`
+}
+
+type echoMainRecordResponse struct {
+	ID              int64     `json:"id"`
+	Date            string    `json:"date"`
+	PlayerID        string    `json:"player_id"`
+	SolaLevel       int       `json:"sola_level"`
+	C3MainStat      string    `json:"c3_main_stat"`
+	C1MainStat      string    `json:"c1_main_stat"`
+	TacetDomain     string    `json:"tacet_domain"`
+	EchoSet         string    `json:"echo_set"`
+	CreatedByUserID *int64    `json:"created_by_user_id"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+type echoMainDetailStat struct {
+	Date        string `json:"date"`
+	PlayerID    string `json:"player_id"`
+	SolaLevel   int    `json:"sola_level"`
+	C3MainStat  string `json:"c3_main_stat"`
+	C1MainStat  string `json:"c1_main_stat"`
+	TacetDomain string `json:"tacet_domain"`
+	EchoSet     string `json:"echo_set"`
+	Count       int    `json:"count"`
+}
+
+type echoMainSummaryStat struct {
+	Dimension  string  `json:"dimension"`
+	Value      string  `json:"value"`
+	Count      int     `json:"count"`
+	Percentage float64 `json:"percentage"`
+}
+
+type echoMainStatsResponse struct {
+	Details []echoMainDetailStat  `json:"details"`
+	Summary []echoMainSummaryStat `json:"summary"`
+}

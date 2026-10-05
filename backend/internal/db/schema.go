@@ -48,6 +48,20 @@ func EnsureSchema(ctx context.Context, database *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_resonance_records_date ON resonance_records(date)`,
 		`CREATE INDEX IF NOT EXISTS idx_resonance_records_player_id ON resonance_records(player_id)`,
+		`CREATE TABLE IF NOT EXISTS echo_main_records (
+			id BIGSERIAL PRIMARY KEY,
+			date DATE NOT NULL,
+			player_id TEXT NOT NULL,
+			sola_level INTEGER NOT NULL DEFAULT 8,
+			c3_main_stat TEXT NOT NULL,
+			c1_main_stat TEXT NOT NULL,
+			tacet_domain TEXT NOT NULL,
+			echo_set TEXT NOT NULL,
+			created_by_user_id BIGINT,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_echo_main_records_date ON echo_main_records(date)`,
+		`CREATE INDEX IF NOT EXISTS idx_echo_main_records_player_id ON echo_main_records(player_id)`,
 	}
 
 	for _, statement := range statements {
@@ -71,6 +85,9 @@ func EnsureSchema(ctx context.Context, database *sql.DB) error {
 	if err := ensureClaimCountColumn(ctx, database, "resonance_records"); err != nil {
 		return err
 	}
+	if err := ensureCreatedByUserIDColumn(ctx, database, "echo_main_records"); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -83,4 +100,6 @@ func PrintSchemaSummary() {
 	fmt.Println("- 字段: id, date, player_id, sola_level, drop_count, created_by_user_id, created_at")
 	fmt.Println("- 表名: resonance_records")
 	fmt.Println("- 字段: id, date, player_id, sola_level, claim_count, gold, purple, blue, green, created_by_user_id, created_at")
+	fmt.Println("- 表名: echo_main_records")
+	fmt.Println("- 字段: id, date, player_id, sola_level, c3_main_stat, c1_main_stat, tacet_domain, echo_set, created_by_user_id, created_at")
 }

@@ -39,7 +39,7 @@
       />
 
       <el-tabs v-else v-model="activeTab">
-        <el-tab-pane label="无音区产出统计" name="tacet" lazy>
+        <el-tab-pane label="无音区" name="tacet" lazy>
           <TacetRecordInput
             v-if="canEdit"
             v-model:player-id="sharedPlayerId"
@@ -55,7 +55,7 @@
           <TacetStatsView :refresh="refreshTrigger" class="mt-16" />
         </el-tab-pane>
 
-        <el-tab-pane label="凝素领域产出统计" name="resonance" lazy>
+        <el-tab-pane label="凝素领域" name="resonance" lazy>
           <ResonanceRecordInput
             v-if="canEdit"
             v-model:player-id="sharedPlayerId"
@@ -71,7 +71,7 @@
           <ResonanceStatsView :refresh="resonanceRefreshTrigger" class="mt-16" />
         </el-tab-pane>
 
-        <el-tab-pane label="共鸣者突破材料统计" name="ascension" lazy>
+        <el-tab-pane label="角色突破材料" name="ascension" lazy>
           <AscensionRecordInput
             v-if="canEdit"
             v-model:player-id="sharedPlayerId"
@@ -85,6 +85,22 @@
             class="mt-16"
           />
           <AscensionStatsView :refresh="ascensionRefreshTrigger" class="mt-16" />
+        </el-tab-pane>
+
+        <el-tab-pane label="无音区声骸主词条" name="echo-main" lazy>
+          <EchoMainRecordInput
+            v-if="canEdit"
+            v-model:player-id="sharedPlayerId"
+            @success="handleEchoMainInputSuccess"
+          />
+          <EchoMainRecordList
+            :refresh="echoMainRefreshTrigger"
+            :can-edit="canEdit"
+            :can-manage="canManage"
+            :current-user-id="currentUserId"
+            class="mt-16"
+          />
+          <EchoMainStatsView :refresh="echoMainRefreshTrigger" class="mt-16" />
         </el-tab-pane>
       </el-tabs>
     </el-main>
@@ -107,6 +123,9 @@ import {
 const TacetRecordInput = defineAsyncComponent(() => import('./components/TacetRecordInput.vue'))
 const TacetRecordList = defineAsyncComponent(() => import('./components/TacetRecordList.vue'))
 const TacetStatsView = defineAsyncComponent(() => import('./components/TacetStatsView.vue'))
+const EchoMainRecordInput = defineAsyncComponent(() => import('./components/EchoMainRecordInput.vue'))
+const EchoMainRecordList = defineAsyncComponent(() => import('./components/EchoMainRecordList.vue'))
+const EchoMainStatsView = defineAsyncComponent(() => import('./components/EchoMainStatsView.vue'))
 const AscensionRecordInput = defineAsyncComponent(() => import('./components/AscensionRecordInput.vue'))
 const AscensionRecordList = defineAsyncComponent(() => import('./components/AscensionRecordList.vue'))
 const AscensionStatsView = defineAsyncComponent(() => import('./components/AscensionStatsView.vue'))
@@ -116,6 +135,7 @@ const ResonanceStatsView = defineAsyncComponent(() => import('./components/Reson
 
 const activeTab = ref('tacet')
 const refreshTrigger = ref(0)
+const echoMainRefreshTrigger = ref(0)
 const ascensionRefreshTrigger = ref(0)
 const resonanceRefreshTrigger = ref(0)
 const PLAYER_ID_STORAGE_KEY = 'wuwa_last_player_id'
@@ -161,6 +181,10 @@ watch(sharedPlayerId, (playerId) => {
 
 const handleInputSuccess = () => {
   refreshTrigger.value++
+}
+
+const handleEchoMainInputSuccess = () => {
+  echoMainRefreshTrigger.value++
 }
 
 const handleAscensionInputSuccess = () => {

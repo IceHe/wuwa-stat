@@ -84,3 +84,30 @@ func validateDate(value string) error {
 	}
 	return nil
 }
+
+func validateEchoMainRecord(input echoMainRecordInput) (echoMainRecordInput, error) {
+	if err := validateDate(input.Date); err != nil {
+		return echoMainRecordInput{}, err
+	}
+	input.PlayerID = strings.TrimSpace(input.PlayerID)
+	input.C3MainStat = strings.TrimSpace(input.C3MainStat)
+	input.C1MainStat = strings.TrimSpace(input.C1MainStat)
+	input.TacetDomain = strings.TrimSpace(input.TacetDomain)
+	input.EchoSet = strings.TrimSpace(input.EchoSet)
+	if input.PlayerID == "" {
+		return echoMainRecordInput{}, fmt.Errorf("player_id 不能为空")
+	}
+	if input.C3MainStat == "" || input.C1MainStat == "" {
+		return echoMainRecordInput{}, fmt.Errorf("C3 和 C1 主词条不能为空")
+	}
+	if input.TacetDomain == "" || input.EchoSet == "" {
+		return echoMainRecordInput{}, fmt.Errorf("无音区和声骸套装不能为空")
+	}
+	if input.SolaLevel == 0 {
+		input.SolaLevel = 8
+	}
+	if input.SolaLevel < 1 {
+		return echoMainRecordInput{}, fmt.Errorf("sola_level 必须大于 0")
+	}
+	return input, nil
+}

@@ -149,6 +149,49 @@ export interface ResonanceDetailedStats {
   level_stats: ResonanceSolaLevelStats[]
 }
 
+export interface EchoMainRecord {
+  id?: number
+  date: string
+  player_id: string
+  sola_level: number
+  c3_main_stat: string
+  c1_main_stat: string
+  tacet_domain: string
+  echo_set: string
+  created_by_user_id?: number | null
+  created_at?: string
+}
+
+export interface EchoMainRecordsResponse {
+  data: EchoMainRecord[]
+  total: number
+  page_size: number
+  current_page: number
+}
+
+export interface EchoMainDetailStat {
+  date: string
+  player_id: string
+  sola_level: number
+  c3_main_stat: string
+  c1_main_stat: string
+  tacet_domain: string
+  echo_set: string
+  count: number
+}
+
+export interface EchoMainSummaryStat {
+  dimension: string
+  value: string
+  count: number
+  percentage: number
+}
+
+export interface EchoMainStats {
+  details: EchoMainDetailStat[]
+  summary: EchoMainSummaryStat[]
+}
+
 export interface AuthMeResponse {
   user_id: number
   name: string
@@ -352,4 +395,32 @@ export const resonanceApi = {
   getPlayerIds: () => api.get<string[]>('/resonance-player-ids'),
 
   deleteRecord: (id: number) => api.delete(`/resonance-records/${id}`)
+}
+
+export const echoMainApi = {
+  createRecords: (records: Omit<EchoMainRecord, 'id' | 'created_by_user_id' | 'created_at'>[], options?: CreateRecordsOptions) =>
+    api.post<EchoMainRecord[]>('/echo-main-records', {
+      records,
+      skip_energy_deduction: !!options?.skipEnergyDeduction
+    }),
+
+  getRecords: (params?: {
+    player_id?: string
+    start_date?: string
+    end_date?: string
+    sola_level?: number
+    skip?: number
+    limit?: number
+  }) => api.get<EchoMainRecordsResponse>('/echo-main-records', { params }),
+
+  getStats: (params?: {
+    player_id?: string
+    start_date?: string
+    end_date?: string
+    sola_level?: number
+  }) => api.get<EchoMainStats>('/echo-main-stats', { params }),
+
+  getPlayerIds: () => api.get<string[]>('/echo-main-player-ids'),
+
+  deleteRecord: (id: number) => api.delete(`/echo-main-records/${id}`)
 }

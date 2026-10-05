@@ -2,7 +2,7 @@
   <el-card>
     <template #header>
       <div class="card-header">
-        <span>凝素领域产出统计</span>
+        <span>凝素领域</span>
         <el-button type="primary" size="small" @click="loadStats">
           刷新
         </el-button>

@@ -41,6 +41,10 @@ func (a *API) Routes() http.Handler {
 	mux.HandleFunc("/api/resonance-records/", a.handleResonanceRecordByID)
 	mux.HandleFunc("/api/resonance-detailed-stats", a.withView(a.handleResonanceDetailedStats))
 	mux.HandleFunc("/api/resonance-player-ids", a.withView(a.handleResonancePlayerIDs))
+	mux.HandleFunc("/api/echo-main-records", a.handleEchoMainRecords)
+	mux.HandleFunc("/api/echo-main-records/", a.handleEchoMainRecordByID)
+	mux.HandleFunc("/api/echo-main-stats", a.withView(a.handleEchoMainStats))
+	mux.HandleFunc("/api/echo-main-player-ids", a.withView(a.handleEchoMainPlayerIDs))
 	return a.withCORS(mux)
 }
 
