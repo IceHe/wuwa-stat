@@ -201,6 +201,17 @@ const resetAuthState = () => {
   tokenInput.value = ''
 }
 
+const isInvalidTokenResponse = (error: unknown) => {
+  const response = (error as { response?: { status?: number } } | null)?.response
+  return response?.status === 401
+}
+
+const keepTokenAfterConnectionFailure = () => {
+  isLoggedIn.value = false
+  authMe.value = null
+  tokenInput.value = getStoredAuthToken()
+}
+
 const handleLogout = () => {
   clearStoredAuthToken()
   resetAuthState()
@@ -218,9 +229,14 @@ const restoreSession = async () => {
     const auth = await authApi.me()
     authMe.value = auth
     isLoggedIn.value = true
-  } catch {
-    clearStoredAuthToken()
-    resetAuthState()
+  } catch (error) {
+    if (isInvalidTokenResponse(error)) {
+      clearStoredAuthToken()
+      resetAuthState()
+    } else {
+      keepTokenAfterConnectionFailure()
+      ElMessage.warning('网络暂时不可用，token 已保留，网络恢复后可继续登录')
+    }
   } finally {
     authLoading.value = false
   }
@@ -240,10 +256,15 @@ const handleLogin = async () => {
     authMe.value = auth
     isLoggedIn.value = true
     ElMessage.success('登录成功')
-  } catch {
-    clearStoredAuthToken()
-    resetAuthState()
-    ElMessage.error('token 无效、已过期或鉴权服务不可用')
+  } catch (error) {
+    if (isInvalidTokenResponse(error)) {
+      clearStoredAuthToken()
+      resetAuthState()
+      ElMessage.error('token 无效或已过期')
+    } else {
+      keepTokenAfterConnectionFailure()
+      ElMessage.warning('网络暂时不可用，token 已保留，请在网络恢复后重试')
+    }
   } finally {
     authLoading.value = false
   }
@@ -257,13 +278,21 @@ const handleUnauthorized = () => {
   }
 }
 
+const handleOnline = () => {
+  if (!isLoggedIn.value && getStoredAuthToken() && !authLoading.value) {
+    void restoreSession()
+  }
+}
+
 onMounted(async () => {
   window.addEventListener(authEvents.unauthorized, handleUnauthorized)
+  window.addEventListener('online', handleOnline)
   await restoreSession()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener(authEvents.unauthorized, handleUnauthorized)
+  window.removeEventListener('online', handleOnline)
 })
 </script>
 
