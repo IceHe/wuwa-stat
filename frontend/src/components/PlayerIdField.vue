@@ -24,42 +24,42 @@
     </el-autocomplete>
 
     <dl
-      v-if="matchedAccount"
+      v-if="displayedAccount"
       class="account-summary"
-      :class="{ 'daily-done-summary': isDailyTaskDone(matchedAccount) }"
-      :title="isDailyTaskDone(matchedAccount) ? '今日日常已完成' : undefined"
+      :class="{ 'daily-done-summary': isDailyTaskDone(displayedAccount) }"
+      :title="isDailyTaskDone(displayedAccount) ? '今日日常已完成' : undefined"
       aria-live="polite"
     >
       <div class="account-summary-item">
         <dt>缩写</dt>
         <dd>
-          <strong>{{ matchedAccount.abbr || '-' }}</strong>
-          <span v-if="!matchedAccount.is_active" class="inactive-label">已停用</span>
+          <strong>{{ displayedAccount.abbr || '-' }}</strong>
+          <span v-if="!displayedAccount.is_active" class="inactive-label">已停用</span>
         </dd>
       </div>
       <div class="account-summary-item">
         <dt>尾号</dt>
-        <dd>{{ matchedAccount.phone_tail || '-' }}</dd>
+        <dd>{{ displayedAccount.phone_tail || '-' }}</dd>
       </div>
       <div class="account-summary-item">
         <dt>体力</dt>
         <dd>
           <span
             class="energy-pill"
-            :class="getEnergyStageClass(matchedAccount)"
-            :title="getEnergyTooltip(matchedAccount)"
+            :class="getEnergyStageClass(displayedAccount)"
+            :title="getEnergyTooltip(displayedAccount)"
           >
-            {{ formatEnergy(matchedAccount) }}
+            {{ formatEnergy(displayedAccount) }}
           </span>
         </dd>
       </div>
       <div class="account-summary-item">
         <dt>玩家ID</dt>
-        <dd>{{ matchedAccount.id }}</dd>
+        <dd>{{ displayedAccount.id }}</dd>
       </div>
       <div class="account-summary-item account-summary-nickname">
         <dt>游戏内昵称</dt>
-        <dd>{{ matchedAccount.nickname || '-' }}</dd>
+        <dd>{{ displayedAccount.nickname || '-' }}</dd>
       </div>
     </dl>
   </div>
@@ -141,7 +141,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, inject, onBeforeUnmount, ref, watch, type Ref } from 'vue'
 import { Refresh, Search, User } from '@element-plus/icons-vue'
 import { accountsApi, type ActiveAccount } from '../api'
 
@@ -159,12 +159,15 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
 }>()
 
+const sharedMatchedAccount = inject<Ref<ActiveAccount | null> | null>('sharedMatchedAccount', null)
+
 const dialogVisible = ref(false)
 const accounts = ref<ActiveAccount[]>([])
 const accountsLoading = ref(false)
 const accountsError = ref('')
 const accountQuery = ref('')
 const matchedAccount = ref<ActiveAccount | null>(null)
+const displayedAccount = computed(() => sharedMatchedAccount ? sharedMatchedAccount.value : matchedAccount.value)
 let accountLookupTimer: ReturnType<typeof setTimeout> | null = null
 let accountLookupSequence = 0
 
@@ -209,10 +212,12 @@ const lookupAccount = async (playerId: string, sequence: number) => {
     const response = await accountsApi.getAccountById(playerId)
     if (sequence === accountLookupSequence && normalize(props.modelValue) === normalize(playerId)) {
       matchedAccount.value = response.data
+      if (sharedMatchedAccount) sharedMatchedAccount.value = response.data
     }
   } catch (error) {
     if (sequence === accountLookupSequence && getResponseStatus(error) === 404) {
       matchedAccount.value = null
+      if (sharedMatchedAccount) sharedMatchedAccount.value = null
     }
   }
 }

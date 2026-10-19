@@ -108,16 +108,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   authApi,
   authEvents,
+  accountsApi,
   clearStoredAuthToken,
   getStoredAuthToken,
   setStoredAuthToken,
   type AuthMeResponse,
-  type Permission
+  type Permission,
+  type ActiveAccount
 } from './api'
 
 const TacetRecordInput = defineAsyncComponent(() => import('./components/TacetRecordInput.vue'))
@@ -161,6 +163,9 @@ const getInitialPlayerId = () => {
 }
 
 const sharedPlayerId = ref(getInitialPlayerId())
+const sharedMatchedAccount = ref<ActiveAccount | null>(null)
+let accountLookupSequence = 0
+provide('sharedMatchedAccount', sharedMatchedAccount)
 
 const permissions = computed<Permission[]>(() => authMe.value?.permissions || [])
 const currentUserId = computed<number | null>(() => authMe.value?.user_id ?? null)
@@ -177,7 +182,19 @@ watch(sharedPlayerId, (playerId) => {
   } else {
     localStorage.removeItem(PLAYER_ID_STORAGE_KEY)
   }
-})
+
+  const sequence = ++accountLookupSequence
+  sharedMatchedAccount.value = null
+  if (!normalizedPlayerId) return
+
+  void accountsApi.getAccountById(normalizedPlayerId).then((response) => {
+    if (sequence === accountLookupSequence && sharedPlayerId.value.trim() === normalizedPlayerId) {
+      sharedMatchedAccount.value = response.data
+    }
+  }).catch(() => {
+    if (sequence === accountLookupSequence) sharedMatchedAccount.value = null
+  })
+}, { immediate: true })
 
 const handleInputSuccess = () => {
   refreshTrigger.value++
