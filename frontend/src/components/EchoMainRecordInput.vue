@@ -50,7 +50,7 @@
       </el-form-item>
       <el-form-item>
         <el-button type="primary" :loading="loading" @click="handleSubmit">提交</el-button>
-        <el-button @click="resetForm">重置</el-button>
+        <el-button @click="resetForm()">重置</el-button>
       </el-form-item>
     </el-form>
   </el-card>
@@ -110,10 +110,10 @@ const form = reactive({
 const selectDomain = (domain: string) => { customDomainSelected.value = false; form.tacet_domain = domain }
 const selectEchoSet = (echoSet: string) => { customEchoSetSelected.value = false; form.echo_set = echoSet }
 
-const resetForm = () => {
+const resetForm = (solaLevel = 8) => {
   form.date = defaultDate()
   form.player_id = props.playerId
-  form.sola_level = 8
+  form.sola_level = solaLevel
   form.c3_main_stat = c3MainStats[0]
   form.c1_main_stat = c1MainStats[0]
   form.tacet_domain = ''
@@ -135,7 +135,7 @@ const submitRecord = async (skipEnergyDeduction = false) => {
   void playerIdFieldRef.value?.refreshAccount()
   ElMessage.success('录入成功')
   emit('success')
-  resetForm()
+  resetForm(form.sola_level)
 }
 const handleSubmit = async () => {
   if (!form.player_id) { ElMessage.warning('请输入玩家ID'); return }

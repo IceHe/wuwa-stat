@@ -413,7 +413,7 @@ const submitRecords = async (skipEnergyDeduction = false) => {
   emit('update:playerId', form.player_id)
   ElMessage.success('录入成功')
   emit('success')
-  handleReset()
+  resetForm(form.sola_level)
 }
 
 const handleSubmit = async () => {
@@ -474,13 +474,15 @@ const loadLastPlayerId = async () => {
   }
 }
 
-const handleReset = () => {
+const resetForm = (solaLevel: number) => {
   form.date = getDefaultGameDate()
   isDateManuallyEdited.value = false
-  form.sola_level = 8
+  form.sola_level = solaLevel
   form.claim_count = 1
   applyComboToForm(getDefaultCombo(form.sola_level, form.claim_count))
 }
+
+const handleReset = () => resetForm(8)
 
 // 初始化
 onMounted(async () => {
